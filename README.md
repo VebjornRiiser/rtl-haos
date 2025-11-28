@@ -16,6 +16,7 @@ Unlike standard `rtl_433` scripts, this project is also a **System Monitor**, re
 * **Smart System Monitor:**
     * Reports Host CPU, RAM, Disk, and Temperature.
     * **Live Radio Status:** Reports if the SDR is "Online," "Scanning," or "Disconnected" (grouped with the host device).
+* **Native Graphing:** All sensors utilize Home Assistant's `measurement` state class, enabling automatic, long-term historical graphing of temperature, humidity, and system resources.
 * **Noise Reduction:**
     * **Data Averaging:** Buffers readings (e.g., every 30s) to prevent database bloat from sensors that spam updates every second.
     * **Filtering:** Built-in Whitelist and Blacklist support to ignore your neighbor's tire pressure sensors.
@@ -24,6 +25,9 @@ Unlike standard `rtl_433` scripts, this project is also a **System Monitor**, re
     * **Multi-Radio Support:** Run multiple dongles on different frequencies simultaneously.
 
 ---
+
+## 🧩 How It Works
+
 ```mermaid
 graph TD
     subgraph "RF Devices (Airwaves)"
@@ -52,6 +56,9 @@ graph TD
     style F fill:#f96,stroke:#333,stroke-width:2px,color:black
     style J fill:#5fb,stroke:#333,stroke-width:1px,color:black
 ```
+
+---
+
 ## 📸 Screenshots
 
 | Device View | System Monitor |
@@ -94,7 +101,7 @@ sudo apt install -y rtl-433 git python3 python3-pip python3-venv libatlas-base-d
 
 ### 2. Clone & Setup
 ```bash
-git clone https://github.com/jaronmcd/rtl-haos.git
+git clone [https://github.com/jaronmcd/rtl-haos.git](https://github.com/jaronmcd/rtl-haos.git)
 cd rtl-haos
 
 # Create and activate virtual environment
