@@ -95,7 +95,7 @@ Install Python and the `rtl_433` binary.
 ```bash
 # Debian / Ubuntu / Raspberry Pi OS
 sudo apt update
-sudo apt install -y rtl-433 git python3 python3-pip python3-venv
+sudo apt install -y rtl-sdr rtl-433 git python3 python3-pip python3-venv
 ```
 
 > **⚠️ Important:** Ensure your user has permission to access the USB stick!
