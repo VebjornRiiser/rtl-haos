@@ -6,13 +6,16 @@
 
 A "drop-in" bridge that turns one or more **RTL-SDR dongles** into Home Assistant-friendly sensors via MQTT. 
 
-Unlike standard `rtl_433` scripts, this project is also a **System Monitor**, reporting the host machine's health (CPU, RAM, Disk, Temp) alongside your RF sensors. It groups the Radio Status with the System device, giving you a complete view of your hardware's health.
+Unlike standard `rtl_433` scripts, this project captures **detailed signal metrics** (RSSI, SNR, Noise) for every received packet, allowing you to troubleshoot interference and optimize antenna placement directly from Home Assistant. 
+
+It also functions as a **System Monitor**, reporting the host machine's health (CPU, RAM, Disk, Temp) and the live status of the radio dongle itself, giving you a complete view of your hardware's performance in one place.
 
 ---
 
 ## ✨ Features
 
 * **Zero-Config Discovery:** Sensors appear automatically in Home Assistant (via MQTT Discovery) with correct units, icons, and friendly names.
+* **Signal Diagnostics:** Reports **RSSI, SNR, and Noise Floor** for every device, making it easy to identify weak signals, plot coverage ranges, or hunt down interference sources.
 * **Smart System Monitor:**
     * Reports Host CPU, RAM, Disk, and Temperature.
     * **Live Radio Status:** Reports if the SDR is "Online," "Scanning," or "Disconnected" (grouped with the host device).
@@ -101,7 +104,7 @@ sudo apt install -y rtl-433 git python3 python3-pip python3-venv libatlas-base-d
 
 ### 2. Clone & Setup
 ```bash
-git clone [https://github.com/jaronmcd/rtl-haos.git](https://github.com/jaronmcd/rtl-haos.git)
+git clone https://github.com/jaronmcd/rtl-haos.git
 cd rtl-haos
 
 # Create and activate virtual environment
