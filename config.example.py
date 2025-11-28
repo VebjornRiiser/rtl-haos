@@ -8,6 +8,7 @@ DESCRIPTION:
 """
 
 # --- RTL-SDR RADIO CONFIGURATION ---
+# leave blank if only using a single RTL-SDR
 RTL_CONFIG = []
 
 # Optional: multiple SDR's require serial number identifier: 
