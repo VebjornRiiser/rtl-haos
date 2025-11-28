@@ -1,151 +1,160 @@
-# RTL-433 to Home Assistant Bridge
+# RTL-HAOS: RTL-433 to Home Assistant Bridge
 
+![Python Version](https://img.shields.io/badge/python-3.7%2B-blue)
+![Home Assistant](https://img.shields.io/badge/Home%20Assistant-MQTT-orange)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-This project turns one or more RTL-SDR dongles into a Home Assistant-friendly sensor bridge. It also acts as a **System Monitor**, reporting the host machine's CPU, RAM, Disk, and Temperature stats to Home Assistant.
+A "drop-in" bridge that turns one or more **RTL-SDR dongles** into Home Assistant-friendly sensors via MQTT. 
 
-It:
+Unlike standard `rtl_433` scripts, this project is also a **System Monitor**, reporting the host machine's health (CPU, RAM, Disk, Temp) alongside your RF sensors. It groups the Radio Status with the System device, giving you a complete view of your hardware's health.
 
-- Runs `rtl_433` and parses its JSON output
-- Normalizes and flattens sensor data
-- Optionally averages/buffers readings to reduce noise
-- Publishes everything to an MQTT broker using **Home Assistant MQTT Discovery**
-- Publishes **system/bridge diagnostics** (CPU, RAM, disk, host model, IP, device list)
-
-The goal is a “drop-in” bridge: plug in RTL-SDR(s), run this script, and watch devices appear in Home Assistant with clean names, units, and icons.
+---
 
 ## ✨ Features
 
-* **MQTT Auto-Discovery:** Sensors appear automatically in Home Assistant without manual YAML configuration.
-* **Field metadata**: units, device_class, icons, friendly names (for HA) 
-* **System monitor**:
-  - CPU %, RAM %, disk %, CPU temp, script memory
-  - Bridge uptime, OS version, model, IP
-  - Count/list of active RF devices
-* **Dew point calculation** derived from temperature + humidity
-* **Filtering:** Built-in Whitelist and Blacklist support to ignore neighbor's sensors.
-* **Multi-Radio Support:** Can manage multiple SDR dongles on different frequencies simultaneously.
-* **Data Averaging:** Buffers and averages sensor readings over a set interval (e.g., 30s) to reduce database noise.
+* **Zero-Config Discovery:** Sensors appear automatically in Home Assistant (via MQTT Discovery) with correct units, icons, and friendly names.
+* **Smart System Monitor:**
+    * Reports Host CPU, RAM, Disk, and Temperature.
+    * **Live Radio Status:** Reports if the SDR is "Online," "Scanning," or "Disconnected" (grouped with the host device).
+* **Noise Reduction:**
+    * **Data Averaging:** Buffers readings (e.g., every 30s) to prevent database bloat from sensors that spam updates every second.
+    * **Filtering:** Built-in Whitelist and Blacklist support to ignore your neighbor's tire pressure sensors.
+* **Advanced Data:**
+    * **Dew Point:** Automatically calculated from Temp + Humidity sensors.
+    * **Multi-Radio Support:** Run multiple dongles on different frequencies simultaneously.
+
+---
+
+## 📸 Screenshots
+
+| Device View | System Monitor |
+|:---:|:---:|
+| *[Insert screenshot of a Weather Sensor in HA]* | *[Insert screenshot of the System/Radio Status device]* |
 
 ---
 
 ## 📂 Project Layout
 
-- `rtl_mqtt_bridge.py` – main entry point; runs rtl_433, buffering, and system monitor threads.  
-- `config.py` – user-editable configuration (radios, filters, MQTT settings, throttle interval).  
-- `mqtt_handler.py` – wraps Paho MQTT client, handles HA discovery and publishing.  
-- `field_meta.py` – maps field names → (unit, device_class, icon, friendly name).  
-- `system_monitor.py` – system monitor loop (bridge stats + hardware metrics).  
-- `sensors_system.py` – low-level system stats using `psutil`.  
-- `utils.py` – shared helpers: MAC handling, dew point math, system MAC ID.  
+* `rtl_mqtt_bridge.py`: Main entry point. Manages threads for `rtl_433`, buffering, and system stats.
+* `config.py`: **User-Editable Settings** (Radios, Filters, MQTT).
+* `mqtt_handler.py`: Handles MQTT connection and Home Assistant Auto-Discovery.
+* `field_meta.py`: Definitions for icons, units, and device classes.
+* `system_monitor.py`: Collects hardware metrics (CPU/RAM/Disk).
 
 ---
 
+## 🛠️ Hardware Requirements
 
----
-
-## 🛠️ Requirements
-
-* **Hardware:** An RTL-SDR USB Dongle (e.g., RTL-SDR Blog V3, Nooelec).
-* **Software:** * Python 3.7+
-    * [rtl_433](https://github.com/merbanan/rtl_433) (Must be installed and accessible in your system path).
+* **Host:** Raspberry Pi (3/4/5), Mini PC, or any Linux machine.
+* **Radio:** RTL-SDR USB Dongle (RTL-SDR Blog V3, Nooelec, etc.).
 
 ---
 
 ## 🚀 Installation
 
-1.  **Install System Dependencies** (Debian/Ubuntu/Raspberry Pi):
-    ```bash
-    sudo apt update
-    sudo apt install -y rtl-433 git python3 python3-pip python3-venv
-    ```
+### 1. System Dependencies
+Install Python and the `rtl_433` binary.
 
-2.  **Clone the Repository:**
-    ```bash
-    git clone https://github.com/jaronmcd/rtl-haos.git
-    cd rtl-haos
-    ```
+```bash
+# Debian / Ubuntu / Raspberry Pi OS
+sudo apt update
+sudo apt install -y rtl-433 git python3 python3-pip python3-venv libatlas-base-dev
+```
 
-3.  **Install Packages:**
-    ```bash
-    # 1. Create a virtual environment named 'venv' in your current directory
-    python3 -m venv venv
-    
-    # 2. Activate the virtual environment
-    source venv/bin/activate
-    
-    # Your command prompt will change to show you are in the 'venv' environment.
-    
-    # 3. Install the packages from your requirements file
-    pip3 install -r requirements.txt
-    ```
----
+> **⚠️ Important:** Ensure your user has permission to access the USB stick!
+> If you haven't already, install the rtl-sdr udev rules:
+> `sudo apt install rtl-sdr` (or download the rules manually). Unplug and replug your dongle after installing.
 
-## ⚙️ Configuration
+### 2. Clone & Setup
+```bash
+git clone https://github.com/jaronmcd/rtl-haos.git
+cd rtl-haos
 
-1.  **Create your config file:**
-    ```bash
-    cp config.example.py config.py
-    ```
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
 
-2.  **Edit `config.py`** to match your environment:
-    * **MQTT_SETTINGS:** Set your Broker IP, username, and password.
-    * **RTL_CONFIG:** Set your radio frequency (default `433.92M`).
-    * **RTL_THROTTLE_INTERVAL:** Set how many seconds to average data (default `30`).
+# Install Python requirements
+pip3 install -r requirements.txt
+```
+
+### 3. Configuration
+Copy the example config and edit it.
+
+```bash
+cp config.example.py config.py
+nano config.py
+```
+
+**Key Configuration Examples:**
+
+```python
+# --- MQTT ---
+MQTT_SETTINGS = {
+    "host": "192.168.1.100",
+    "user": "mqtt_user",
+    "pass": "password"
+}
+
+# --- MULTI-RADIO SETUP ---
+# You can define multiple radios here.
+RTL_CONFIG = [
+    {"name": "Weather Radio", "id": "0", "freq": "433.92M", "rate": "250k"},
+    {"name": "Utility Meter", "id": "1", "freq": "915M",    "rate": "250k"},
+]
+
+# --- FILTERING ---
+# Ignore specific neighbors by ID or Model
+DEVICE_BLACKLIST = [
+    "SimpliSafe*",
+    "EezTire*",
+]
+```
 
 ---
 
 ## ▶️ Usage
 
-Run the bridge manually to test:
+Run the bridge manually to test connection:
 
 ```bash
+source venv/bin/activate
 python3 rtl_mqtt_bridge.py
 ```
 
-### Expected Output
-You should see logs indicating the bridge is connected and processing data:
-
+**Expected Output:**
 ```text
 [STARTUP] Connecting to MQTT Broker at 192.168.1.100...
 [MQTT] Connected Successfully.
-[RTL] Starting Weather Radio on 433.92M...
-[THROTTLE] Averaging data every 30 seconds.
-[STARTUP] Hardware Monitor (psutil) initialized.
-
+[RTL] Manager started for Weather Radio. Monitoring...
+ -> TX RaspberryPi (b827eb...) [radio_status_0]: Scanning...
+ -> TX RaspberryPi (b827eb...) [radio_status_0]: Online
  -> TX Acurite-5n1 (1234) [temperature]: 72.3
- -> TX Acurite-5n1 (1234) [humidity]: 45
- -> TX Generic-Device (A1B2) [pressure_hpa]: 1013
 ```
 
 ---
 
-## 🧩 Home Assistant Setup
+## 🤖 Running as a Service
 
-1.  Ensure you have an MQTT Broker (like Mosquitto) installed.
-2.  Ensure the **MQTT Integration** is active in Home Assistant.
-3.  Start this script.
-4.  Go to **Settings > Devices & Services > MQTT**. 
-5.  Your devices (and the Bridge System Monitor) will appear automatically.
+To keep the bridge running 24/7, use `systemd`.
 
----
+1.  **Create the service file:**
+    ```bash
+    sudo nano /etc/systemd/system/rtl-bridge.service
+    ```
 
-## 🤖 Running as a Service (Optional)
-
-To keep the script running in the background on Linux, create a systemd service.  
-This example assumes you’re using a virtual environment named `venv` inside `/home/pi/rtl-haos`.
-
-1.  Create file: `sudo nano /etc/systemd/system/rtl-bridge.service`
-2.  Paste the following (adjust paths to match your user and venv location):
-
+2.  **Paste the configuration** (Update paths to match your username!):
     ```ini
     [Unit]
-    Description=RTL-433 MQTT Bridge
+    Description=RTL-HAOS MQTT Bridge
     After=network.target
 
     [Service]
     Type=simple
     User=pi
+    # UPDATE THIS PATH
     WorkingDirectory=/home/pi/rtl-haos
+    # UPDATE THIS PATH
     ExecStart=/home/pi/rtl-haos/venv/bin/python /home/pi/rtl-haos/rtl_mqtt_bridge.py
     Restart=always
     RestartSec=10
@@ -154,13 +163,21 @@ This example assumes you’re using a virtual environment named `venv` inside `/
     WantedBy=multi-user.target
     ```
 
-3.  Reload systemd, then enable and start:
-
+3.  **Enable and Start:**
     ```bash
     sudo systemctl daemon-reload
     sudo systemctl enable rtl-bridge.service
     sudo systemctl start rtl-bridge.service
     ```
 
+---
 
+## ❓ Troubleshooting
 
+* **"No Device Found" in Logs:**
+    * The script cannot see your USB stick. 
+    * Run `lsusb` to verify it is plugged in.
+    * Ensure you are not running another instance of `rtl_433` in the background.
+* **"Kernel driver is active" Error:**
+    * Linux loaded the default TV tuner driver. You need to blacklist it.
+    * Run: `echo "blacklist dvb_usb_rtl28xxu" | sudo tee /etc/modprobe.d/blacklist-rtl.conf` and reboot.
