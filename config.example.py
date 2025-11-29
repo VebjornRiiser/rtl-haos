@@ -67,7 +67,7 @@ FORCE_NEW_IDS = False
 ID_SUFFIX = "_v2" if FORCE_NEW_IDS else ""
 
 # If True, print raw rtl_433 JSON to stdout for debugging
-DEBUG_RAW_JSON = True
+DEBUG_RAW_JSON = False
 
 # --- THROTTLE / AVERAGING ---
 # Time in seconds to buffer data before sending.
