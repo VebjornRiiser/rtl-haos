@@ -101,7 +101,7 @@ class HomeNodeMQTT:
                 "unique_id": unique_id,
                 "device": {
                     "identifiers": [f"rtl433_{device_model}_{unique_id.split('_')[0]}"],
-                    "manufacturer": "West End Software",
+                    "manufacturer": "rtl-haos",
                     "model": device_model,
                     "name": device_name 
                 },
