@@ -1,0 +1,69 @@
+#!/usr/bin/with-contenv bashio
+# shellcheck shell=bash
+
+# Detect if running as Home Assistant Add-on
+if [ -f /data/options.json ]; then
+    # Home Assistant Add-on mode
+    bashio::log.info "Running in Home Assistant Add-on mode"
+
+    # Only export config values if they are set (let pydantic use defaults for empty ones)
+    if bashio::config.has_value 'mqtt_host'; then
+        export MQTT_HOST=$(bashio::config 'mqtt_host')
+    fi
+
+    if bashio::config.has_value 'mqtt_port'; then
+        export MQTT_PORT=$(bashio::config 'mqtt_port')
+    fi
+
+    if bashio::config.has_value 'mqtt_user'; then
+        export MQTT_USER=$(bashio::config 'mqtt_user')
+    fi
+
+    if bashio::config.has_value 'mqtt_pass'; then
+        export MQTT_PASS=$(bashio::config 'mqtt_pass')
+    fi
+
+    if bashio::config.has_value 'rtl_expire_after'; then
+        export RTL_EXPIRE_AFTER=$(bashio::config 'rtl_expire_after')
+    fi
+
+    if bashio::config.has_value 'rtl_throttle_interval'; then
+        export RTL_THROTTLE_INTERVAL=$(bashio::config 'rtl_throttle_interval')
+    fi
+
+    if bashio::config.has_value 'debug_raw_json'; then
+        export DEBUG_RAW_JSON=$(bashio::config 'debug_raw_json')
+    fi
+
+    # Handle array configs
+    # For arrays, use jq to read directly from /data/options.json to ensure proper JSON format
+    CONFIG_PATH="/data/options.json"
+
+    export RTL_CONFIG=$(jq -c '.rtl_config // []' "$CONFIG_PATH")
+    bashio::log.debug "RTL_CONFIG=${RTL_CONFIG}"
+
+    export DEVICE_BLACKLIST=$(jq -c '.device_blacklist // ["SimpliSafe*","EezTire*"]' "$CONFIG_PATH")
+    bashio::log.debug "DEVICE_BLACKLIST=${DEVICE_BLACKLIST}"
+
+    export DEVICE_WHITELIST=$(jq -c '.device_whitelist // []' "$CONFIG_PATH")
+    bashio::log.debug "DEVICE_WHITELIST=${DEVICE_WHITELIST}"
+
+    # Use MQTT service if available and no host configured
+    # Check if MQTT_HOST was exported (i.e., user provided a non-empty value)
+    if [ -z "${MQTT_HOST:-}" ] && bashio::services.available "mqtt"; then
+        bashio::log.info "Using Home Assistant MQTT service"
+        export MQTT_HOST=$(bashio::services mqtt "host")
+        export MQTT_PORT=$(bashio::services mqtt "port")
+        export MQTT_USER=$(bashio::services mqtt "username")
+        export MQTT_PASS=$(bashio::services mqtt "password")
+    fi
+
+    bashio::log.info "Starting RTL-HAOS bridge..."
+    bashio::log.info "MQTT Host: ${MQTT_HOST:-none}:${MQTT_PORT:-none}"
+else
+    # Standalone Docker mode - use environment variables directly
+    echo "[STARTUP] Running in standalone mode"
+    echo "[STARTUP] MQTT Host: ${MQTT_HOST:-localhost}:${MQTT_PORT:-1883}"
+fi
+
+exec python3 /app/rtl_mqtt_bridge.py

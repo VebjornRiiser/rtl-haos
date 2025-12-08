@@ -1,0 +1,12 @@
+[project]
+name = "rtl-haos"
+version = "1.0.0"
+description = "RTL-SDR to Home Assistant MQTT bridge"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "paho-mqtt==2.1.0",
+    "psutil==7.0.0",
+    "pydantic-settings>=2.11.0",
+    "rich>=13.0.0",
+]

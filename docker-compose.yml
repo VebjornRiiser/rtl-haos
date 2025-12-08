@@ -1,0 +1,15 @@
+services:
+  rtl-haos:
+    build: .
+    container_name: rtl-haos
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    env_file:
+      - .env
+    # Or specify environment variables directly:
+    # environment:
+    #   - MQTT_HOST=192.168.1.123
+    #   - MQTT_USER=mqtt_user
+    #   - MQTT_PASS=mqtt_password

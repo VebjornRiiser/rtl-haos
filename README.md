@@ -4,9 +4,9 @@
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-MQTT-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-A "drop-in" bridge that turns one or more **RTL-SDR dongles** into Home Assistant-friendly sensors via MQTT. 
+A "drop-in" bridge that turns one or more **RTL-SDR dongles** into Home Assistant-friendly sensors via MQTT.
 
-Unlike standard `rtl_433` scripts, this project captures **detailed signal metrics** (RSSI, SNR, Noise) for every received packet, allowing you to troubleshoot interference and optimize antenna placement directly from Home Assistant. 
+Unlike standard `rtl_433` scripts, this project captures **detailed signal metrics** (RSSI, SNR, Noise) for every received packet, allowing you to troubleshoot interference and optimize antenna placement directly from Home Assistant.
 
 It also functions as a **System Monitor**, reporting the host machine's health (CPU, RAM, Disk, Temp) and the live status of the radio dongle itself, giving you a complete view of your hardware's performance in one place.
 
@@ -16,18 +16,18 @@ See rtl_433 documentation for supported devices: https://github.com/merbanan/rtl
 
 ## ✨ Features
 
-* **Zero-Config Discovery:** Sensors appear automatically in Home Assistant (via MQTT Discovery) with correct units, icons, and friendly names.
-* **Signal Diagnostics:** Reports **RSSI, SNR, and Noise Floor** for every device, making it easy to identify weak signals, plot coverage ranges, or hunt down interference sources.
-* **Smart System Monitor:**
-    * Reports Host CPU, RAM, Disk, and Temperature.
-    * **Live Radio Status:** Shows `"Scanning..."`, `"Online"`, or error states like `"No Device Found"` / `"Error: USB Busy"` for each radio, grouped with the host device.
-* **Native Graphing:** Environmental sensors use the correct `measurement` state class, and meter-like fields use `total_increasing`, so graphs and statistics in Home Assistant just work for temperatures, humidity, pressure, light, and utility counters.
-* **Noise Reduction:**
-    * **Data Averaging:** Buffers readings (e.g., every 30s) to prevent database bloat from sensors that spam updates every second.
-    * **Filtering:** Built-in Whitelist and Blacklist support to ignore your neighbor's tire pressure sensors.
-* **Advanced Data:**
-    * **Dew Point:** Automatically calculated from Temp + Humidity sensors.
-    * **Multi-Radio Support:** Run multiple dongles on different frequencies simultaneously.
+- **Zero-Config Discovery:** Sensors appear automatically in Home Assistant (via MQTT Discovery) with correct units, icons, and friendly names.
+- **Signal Diagnostics:** Reports **RSSI, SNR, and Noise Floor** for every device, making it easy to identify weak signals, plot coverage ranges, or hunt down interference sources.
+- **Smart System Monitor:**
+  - Reports Host CPU, RAM, Disk, and Temperature.
+  - **Live Radio Status:** Shows `"Scanning..."`, `"Online"`, or error states like `"No Device Found"` / `"Error: USB Busy"` for each radio, grouped with the host device.
+- **Native Graphing:** Environmental sensors use the correct `measurement` state class, and meter-like fields use `total_increasing`, so graphs and statistics in Home Assistant just work for temperatures, humidity, pressure, light, and utility counters.
+- **Noise Reduction:**
+  - **Data Averaging:** Buffers readings (e.g., every 30s) to prevent database bloat from sensors that spam updates every second.
+  - **Filtering:** Built-in Whitelist and Blacklist support to ignore your neighbor's tire pressure sensors.
+- **Advanced Data:**
+  - **Dew Point:** Automatically calculated from Temp + Humidity sensors.
+  - **Multi-Radio Support:** Run multiple dongles on different frequencies simultaneously.
 
 ---
 
@@ -44,7 +44,7 @@ graph TD
     subgraph "Host (Raspberry Pi / Linux)"
         D(<b>RTL-SDR Dongle</b>) -->|USB Signal| E(<b>rtl_433 Binary</b>)
         E -->|Raw JSON| F("<b>RTL-HAOS Bridge</b><br/>(This Software)")
-        
+
         subgraph "System Stats"
             H(<b>CPU/RAM</b>) --> F
             I(<b>Disk/Temp</b>) --> F
@@ -58,21 +58,21 @@ graph TD
         G -->|MQTT Auto-Discovery| J(<b>Sensor Entities</b>)
         G -->|Diagnostic Data| K(<b>System Monitor</b>)
     end
-    
+
     %% STYLING
-    
+
     %% RTL Bridge (Orange)
     style F fill:#f96,stroke:#333,stroke-width:4px,color:black,rx:10,ry:10
-    
+
     %% MQTT Broker (Blue)
     style G fill:#bbdefb,stroke:#0d47a1,stroke-width:4px,color:black,rx:10,ry:10
-    
+
     %% Sensor Entities (Green)
     style J fill:#5fb,stroke:#333,stroke-width:2px,color:black,rx:10,ry:10
-    
+
     %% System Monitor (Gray)
     style K fill:#cfd8dc,stroke:#333,stroke-width:2px,color:black,rx:10,ry:10
-    
+
     %% Input Devices (White)
     style A fill:#fff,stroke:#333,stroke-width:2px,color:black,rx:5,ry:5
     style B fill:#fff,stroke:#333,stroke-width:2px,color:black,rx:5,ry:5
@@ -105,105 +105,246 @@ graph TD
 </div>
 
 ---
+
 ## 📂 Project Layout
 
-* `rtl_mqtt_bridge.py` – Main script. Starts rtl_433 processes, system monitor, and MQTT publishing.
-* `config.example.py` – Template for your settings. Copy this to `config.py`.
-* `config.py` – Your settings (radios, filters, MQTT, throttle).
-
+- `rtl_mqtt_bridge.py` – Main script. Starts rtl_433 processes, system monitor, and MQTT publishing.
+- `.env.example` – Template for environment variables. Copy to `.env`.
 
 ---
 
 ## 🛠️ Hardware Requirements
 
-* **Host:** Raspberry Pi (3/4/5), Mini PC, Proxmox, or any Linux machine.
-* **Radio:** RTL-SDR USB Dongle (RTL-SDR Blog V3, Nooelec, etc.).
+- **Host:** Raspberry Pi (3/4/5), Mini PC, Proxmox, or any Linux machine.
+- **Radio:** RTL-SDR USB Dongle (RTL-SDR Blog V3, Nooelec, etc.).
+
+---
+
+## ⚙️ Configuration
+
+> **Note:** If you're using the **Home Assistant Add-on**, skip this section and go directly to [Installation](#-installation). Add-on configuration is done through the Home Assistant UI.
+
+This section applies to **Docker** and **Native** installation methods only.
+
+### Setup
+
+```bash
+git clone https://github.com/jaronmcd/rtl-haos.git
+cd rtl-haos
+
+# Copy and edit the environment file
+cp .env.example .env
+nano .env
+```
+
+All configuration is done via environment variables in a `.env` file.
+
+### Required Configuration
+
+At minimum, you need to configure your MQTT broker connection:
+
+```bash
+# --- MQTT ---
+MQTT_HOST=192.168.1.100
+MQTT_USER=mqtt_user
+MQTT_PASS=password
+```
+
+### Advanced Configuration
+
+**Multi-Radio Setup:**
+
+> **Note**: If you only have **one** RTL-SDR, no other radio configuration is needed.
+> The bridge will automatically try to read the dongle's serial with `rtl_eeprom` and use that.
+> If it cannot detect a serial, it falls back to device index `id = "0"`.
+
+For multiple RTL-SDR dongles on different frequencies:
+
+```bash
+# Multiple radios (id should match dongle serial)
+RTL_CONFIG='[{"name": "Weather Radio", "id": "101", "freq": "433.92M", "rate": "250k"}, {"name": "Utility Meter", "id": "102", "freq": "915M", "rate": "250k"}]'
+```
+
+**Device Filtering:**
+
+Block or allow specific device patterns:
+
+```bash
+# Device filtering (block specific devices)
+DEVICE_BLACKLIST='["SimpliSafe*", "EezTire*"]'
+
+# Device filtering (allow only specific devices - optional)
+DEVICE_WHITELIST='["Acurite-5n1*", "AmbientWeather*"]'
+```
+
+See [.env.example](.env.example) for all available configuration options.
 
 ---
 
 ## 🚀 Installation
 
-### 1. System Dependencies
+### Option A: Home Assistant Add-on
+
+The easiest way to use rtl-haos with Home Assistant OS is as an add-on.
+
+#### 1. Add the Repository
+
+In Home Assistant:
+
+1. Navigate to **Settings** → **Add-ons** → **Add-on Store**
+2. Click the **⋮** menu (top right) → **Repositories**
+3. Add this repository URL:
+   ```
+   https://github.com/jaronmcd/rtl-haos
+   ```
+4. Click **Add**
+
+#### 2. Install the Add-on
+
+1. Find "RTL-HAOS" in the add-on store
+2. Click on it and select **Install**
+3. Wait for the installation to complete
+
+#### 3. Configure the Add-on
+
+Go to the **Configuration** tab and set your options:
+
+**Basic Configuration:**
+
+```yaml
+# MQTT Settings
+mqtt_host: core-mosquitto # Leave blank to auto-use HA MQTT service
+mqtt_user: your_mqtt_user
+mqtt_pass: your_mqtt_password
+```
+
+> **Note:** The add-on will automatically use the Home Assistant MQTT service if available and `mqtt_host` is left blank.
+
+**Advanced Configuration (Optional, default values shown below):**
+
+```yaml
+# Publishing Settings
+rtl_expire_after: 600 # Seconds before sensor marked unavailable
+rtl_throttle_interval: 30 # Seconds to buffer/average data (0 = realtime)
+debug_raw_json: false # Print raw rtl_433 JSON for debugging
+
+# Multi-Radio Configuration (leave empty for auto-detection)
+rtl_config:
+  - name: Weather Radio # Friendly name
+    id: "101" # RTL-SDR serial number
+    freq: 433.92M # Frequency
+    rate: 250k # Sample rate (optional)
+  - name: Utility Meter
+    id: "102"
+    freq: 915M
+    rate: 250k
+
+# Device Filtering
+device_blacklist: # Block specific device patterns
+  - "SimpliSafe*"
+  - "EezTire*"
+device_whitelist: [] # If set, only allow these patterns
+```
+
+#### 4. Start the Add-on
+
+1. Go to the **Info** tab
+2. Enable **Start on boot** (recommended)
+3. Click **Start**
+4. Check the **Log** tab to verify it's running
+
+---
+
+### Option B: Docker
+
+Once you have set up your configuration, you can run rtl-haos with Docker.
+
+#### Run with Docker Compose
+
+```bash
+docker compose up -d
+```
+
+#### Or run with Docker directly
+
+```bash
+# Build the image
+docker build -t rtl-haos .
+
+# Run the container
+docker run -d \
+  --name rtl-haos \
+  --restart unless-stopped \
+  --privileged \
+  --device /dev/bus/usb:/dev/bus/usb \
+  --env-file .env \
+  rtl-haos
+```
+
+> **Note:** The `--privileged` and `--device` flags are required for USB access to the RTL-SDR dongle.
+
+#### View logs
+
+```bash
+docker compose logs -f
+# or
+docker logs -f rtl-haos
+```
+
+---
+
+### Option C: Native Installation
+
+#### 1. System Dependencies
+
 Install Python and the `rtl_433` binary.
 
 ```bash
 # Debian / Ubuntu / Raspberry Pi OS
 sudo apt update
-sudo apt install -y rtl-sdr rtl-433 git python3 python3-pip python3-venv
+sudo apt install -y rtl-sdr rtl-433 git python3 python3-pip curl
 ```
 
-### 2. Clone & Setup
-```bash
-git clone https://github.com/jaronmcd/rtl-haos.git
-cd rtl-haos
-
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install Python requirements
-pip3 install -r requirements.txt
-```
-
-### 3. Configuration
-Copy the example config and edit it.
+#### 2. Install uv (Python package manager)
 
 ```bash
-cp config.example.py config.py
-nano config.py
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-If you only have **one** RTL-SDR, you can leave `RTL_CONFIG = []` in `config.py`.  
-The bridge will automatically try to read the dongle's serial with `rtl_eeprom` and use that.  
-If it cannot detect a serial, it falls back to device index `id = "0"`.
-
-**Key Configuration Examples:**
-
-```python
-# --- MQTT ---
-MQTT_SETTINGS = {
-    "host": "192.168.1.100",   # Your MQTT broker / Home Assistant IP
-    "port": 1883,
-    "user": "mqtt_user",
-    "pass": "password",
-    "keepalive": 60,
-}
-
-# --- MULTI-RADIO SETUP ---
-# You can define multiple radios here; `id` should match the dongle serial (see Advanced: Multi-Radio Setup).
-RTL_CONFIG = [
-    {"name": "Weather Radio", "id": "101", "freq": "433.92M", "rate": "250k"},
-    {"name": "Utility Meter", "id": "102", "freq": "915M",    "rate": "250k"},
-]
-
-# --- FILTERING ---
-# Ignore specific neighbors by ID or Model
-DEVICE_BLACKLIST = [
-    "SimpliSafe*",
-    "EezTire*",
-]
-```
-
-### 4. Reboot
+#### 3. Install Dependencies
 
 ```bash
-# Debian / Ubuntu / Raspberry Pi OS
-sudo reboot now
+# From the rtl-haos directory
+uv sync
 ```
 
 ---
 
 ## ▶️ Usage
 
-Run the bridge manually to test connection:
+### Home Assistant Add-on
+
+Once the add-on is running, sensors will automatically appear in Home Assistant via MQTT Discovery. Check the add-on logs for status:
+
+1. Navigate to **Settings** → **Add-ons** → **RTL-HAOS**
+2. Click on the **Log** tab
+
+### Docker
+
+```bash
+docker compose up -d
+docker compose logs -f
+```
+
+### Native
 
 ```bash
 cd rtl-haos
-source venv/bin/activate
-python3 rtl_mqtt_bridge.py
+uv run python rtl_mqtt_bridge.py
 ```
 
 **Expected Output:**
+
 ```text
 [STARTUP] Connecting to MQTT Broker at 192.168.1.100...
 [MQTT] Connected Successfully.
@@ -213,7 +354,7 @@ python3 rtl_mqtt_bridge.py
  -> TX Acurite-5n1 (1234) [temperature]: 72.3
 ```
 
-   **Note:** It may take a few minutes for the system to receive its first radio transmission.
+> **Note:** It may take a few minutes for the system to receive its first radio transmission.
 
 ---
 
@@ -222,6 +363,7 @@ python3 rtl_mqtt_bridge.py
 If you plan to use multiple RTL-SDR dongles (e.g., one for 433MHz and one for 915MHz), you **must** assign them unique serial numbers. By default, most dongles share the serial `00000001`, which causes conflicts where the system swaps "Radio A" and "Radio B" after a reboot.
 
 ### ⚠️ Step 1: Safety First (Backup EEPROM)
+
 Before modifying your hardware, it is good practice to dump the current EEPROM image. This allows you to restore the dongle if something goes wrong.
 
 1.  Stop any running services (e.g., `sudo systemctl stop rtl-bridge`).
@@ -230,14 +372,15 @@ Before modifying your hardware, it is good practice to dump the current EEPROM i
     ```bash
     rtl_eeprom -r original_backup.bin
     ```
-    *This saves a binary file `original_backup.bin` to your current folder.*
+    _This saves a binary file `original_backup.bin` to your current folder._
 
 ### Step 2: Set New Serial Number
+
 1.  With only one dongle plugged in, run:
     ```bash
     rtl_eeprom -s 101
     ```
-    *(Replace `101` with your desired ID, e.g., 102, 103).*
+    _(Replace `101` with your desired ID, e.g., 102, 103)._
 2.  **Unplug and Replug** the dongle to apply the change.
 3.  Verify the new serial:
     ```bash
@@ -252,48 +395,51 @@ Before modifying your hardware, it is good practice to dump the current EEPROM i
 
 ## 🤖 Running as a Service
 
-To keep the bridge running 24/7, use `systemd`.
+To keep the bridge running 24/7 using the native installation method, use `systemd`.
 
 1.  **Create the service file:**
+
     ```bash
     sudo nano /etc/systemd/system/rtl-bridge.service
     ```
 
 2.  **Paste the configuration** (Update paths to match your username!):
+
     ```ini
       [Unit]
       Description=RTL-HAOS MQTT Bridge
       # Wait for the network to have a valid IP address before starting
       Wants=network-online.target
       After=network-online.target
-      
+
       [Service]
       Type=simple
       # CHANGE THIS to your username (e.g., pi, user, admin)
       User=pi
       # CHANGE THIS to your directory path
       WorkingDirectory=/home/pi/rtl-haos
-      
+
       # Unbuffer output so logs show up immediately
       Environment=PYTHONUNBUFFERED=1
-      
+
       # Wait 10 seconds before starting to ensure USB device is ready
       ExecStartPre=/bin/sleep 10
-      
+
       # CHANGE THESE PATHS to match your virtual environment and script location
       ExecStart=/home/pi/rtl-haos/venv/bin/python3 /home/pi/rtl-haos/rtl_mqtt_bridge.py
-      
+
       # Restart automatically if it crashes
       Restart=on-failure
       RestartSec=5
       # Infinite restart attempts (do not stop trying)
       StartLimitIntervalSec=0
-      
+
       [Install]
       WantedBy=multi-user.target
     ```
 
 3.  **Enable and Start:**
+
     ```bash
       sudo systemctl daemon-reload
       sudo systemctl enable rtl-bridge.service
@@ -304,18 +450,20 @@ To keep the bridge running 24/7, use `systemd`.
     ```bash
       systemctl status rtl-bridge.service
     ```
+
 ---
 
 ## ❓ Troubleshooting
-* **"Service Fails to Start (Exit Code Error)**
-    * Check your username in the service file. If your terminal says user@hostname, your User= line must be user, not pi
-    * Verify paths. Run ls /home/YOUR_USER/rtl-haos to make sure the folder exists.
-    * Check the logs: journalctl -u rtl-bridge.service -b
-* **"No Device Found" in Logs:**
-    * The script cannot see your USB stick. 
-    * Run `lsusb` to verify it is plugged in.
-    * Ensure you are not running another instance of `rtl_433` in the background.
-    * The ExecStartPre=/bin/sleep 10 line in the service file usually fixes this by waiting for the USB to wake up on reboot.
-* **"Kernel driver is active" Error:**
-    * Linux loaded the default TV tuner driver. You need to blacklist it.
-    * Run: `echo "blacklist dvb_usb_rtl28xxu" | sudo tee /etc/modprobe.d/blacklist-rtl.conf` and reboot.
+
+- **"Service Fails to Start (Exit Code Error)**
+  - Check your username in the service file. If your terminal says user@hostname, your User= line must be user, not pi
+  - Verify paths. Run ls /home/YOUR_USER/rtl-haos to make sure the folder exists.
+  - Check the logs: journalctl -u rtl-bridge.service -b
+- **"No Device Found" in Logs:**
+  - The script cannot see your USB stick.
+  - Run `lsusb` to verify it is plugged in.
+  - Ensure you are not running another instance of `rtl_433` in the background.
+  - The ExecStartPre=/bin/sleep 10 line in the service file usually fixes this by waiting for the USB to wake up on reboot.
+- **"Kernel driver is active" Error:**
+  - Linux loaded the default TV tuner driver. You need to blacklist it.
+  - Run: `echo "blacklist dvb_usb_rtl28xxu" | sudo tee /etc/modprobe.d/blacklist-rtl.conf` and reboot.

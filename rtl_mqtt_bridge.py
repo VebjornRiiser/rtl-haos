@@ -27,7 +27,7 @@ def check_dependencies():
     # 2. Check for Paho MQTT (Python Dependency)
     if importlib.util.find_spec("paho") is None:
         print("CRITICAL: Python dependency 'paho-mqtt' not found.")
-        print("Please install requirements: pip install -r requirements.txt")
+        print("Please install requirements: uv sync")
         sys.exit(1)
 
 check_dependencies()

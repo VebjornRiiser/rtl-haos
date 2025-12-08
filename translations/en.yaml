@@ -1,0 +1,36 @@
+configuration:
+  mqtt_host:
+    name: MQTT Host
+    description: >-
+      MQTT broker hostname or IP address. Leave empty to auto-detect
+      Home Assistant's MQTT service.
+  mqtt_port:
+    name: MQTT Port
+    description: MQTT broker port number.
+  mqtt_user:
+    name: MQTT Username
+    description: Username for MQTT authentication.
+  mqtt_pass:
+    name: MQTT Password
+    description: Password for MQTT authentication.
+  rtl_expire_after:
+    name: Sensor Expiry
+    description: >-
+      Time in seconds before sensors are marked unavailable in Home Assistant.
+  rtl_throttle_interval:
+    name: Throttle Interval
+    description: >-
+      Seconds to buffer readings before publishing. Set to 0 for real-time
+      updates, or higher values to average readings and reduce database size.
+  debug_raw_json:
+    name: Debug Mode
+    description: Print raw rtl_433 JSON output to the log.
+  device_blacklist:
+    name: Device Blacklist
+    description: >-
+      Device patterns to ignore (supports wildcards). Example: SimpliSafe*, EezTire*
+  device_whitelist:
+    name: Device Whitelist
+    description: >-
+      If set, only these device patterns are allowed. Leave empty to allow all
+      devices (except blacklisted ones).
