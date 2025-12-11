@@ -3,7 +3,8 @@
 FILE: rtl_mqtt_bridge.py
 DESCRIPTION:
   The main executable script.
-  - UPDATED: Now prints raw output from rtl_433 if it's not JSON (catches config errors).
+  - UPDATED: Now prints Git Revision on startup.
+  - UPDATED: Captures and prints raw stderr from rtl_433 failures.
 """
 import subprocess
 import json
@@ -44,6 +45,17 @@ DATA_BUFFER = {}
 BUFFER_LOCK = threading.Lock()
 
 # ---------------- HELPERS ----------------
+def get_revision():
+    """Attempts to retrieve the current git commit short hash."""
+    try:
+        rev = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], 
+            stderr=subprocess.STDOUT
+        ).decode().strip()
+        return rev
+    except Exception:
+        return "Unknown"
+
 def flatten(d, sep: str = "_") -> dict:
     obj = {}
     def recurse(t, parent: str = ""):
@@ -310,7 +322,8 @@ def rtl_loop(radio_config: dict, mqtt_handler: HomeNodeMQTT, sys_id: str, sys_mo
         time.sleep(30)
 
 def main():
-    print("--- RTL-MQTT BRIDGE + SYSTEM MONITOR STARTING ---")
+    rev = get_revision()
+    print(f"--- RTL-MQTT BRIDGE + SYSTEM MONITOR STARTING [Rev: {rev}] ---")
 
     mqtt_handler = HomeNodeMQTT()
     mqtt_handler.start()
