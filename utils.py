@@ -9,16 +9,36 @@ DESCRIPTION:
 """
 import re
 import math
-import uuid # <--- Required for get_system_mac
+import psutil  # <--- Added for reliable MAC detection
 
 # Global cache for MAC to prevent re-reading
 _SYSTEM_MAC = None
 
 def get_system_mac():
     global _SYSTEM_MAC
-    if _SYSTEM_MAC: return _SYSTEM_MAC
-    mac = uuid.getnode()
-    _SYSTEM_MAC = ':'.join(("%012X" % mac)[i:i+2] for i in range(0, 12, 2))
+    if _SYSTEM_MAC: 
+        return _SYSTEM_MAC
+        
+    try:
+        # Iterate over all network interfaces to find the real hardware address
+        addrs = psutil.net_if_addrs()
+        for interface_name, interface_addresses in addrs.items():
+            # Skip the loopback interface (localhost)
+            if interface_name == "lo":
+                continue
+                
+            for address in interface_addresses:
+                # AF_LINK is the constant for MAC Address on Linux/Unix
+                if address.family == psutil.AF_LINK and address.address:
+                    _SYSTEM_MAC = address.address.lower()
+                    return _SYSTEM_MAC
+                    
+    except Exception as e:
+        print(f"[WARN] Could not find MAC via psutil: {e}")
+
+    # Fallback: FIXED value so the ID never changes randomly
+    # If psutil fails, we default to this dummy address
+    _SYSTEM_MAC = "00:00:00:00:00:01"
     return _SYSTEM_MAC
 
 def clean_mac(mac):
