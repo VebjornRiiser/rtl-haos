@@ -1,11 +1,28 @@
-"""
-FILE: config.py
-DESCRIPTION:
-  Values can be set via environment variables or a .env file.
-"""
-
+# config.py
+import os
+import json
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# This acts as the bridge between Home Assistant's UI and your Python script.
+OPTIONS_PATH = "/data/options.json"
+if os.path.exists(OPTIONS_PATH):
+    try:
+        with open(OPTIONS_PATH, "r") as f:
+            options = json.load(f)
+            for key, value in options.items():
+                # Python expects "RTL_DEFAULT_FREQ", HA gives "rtl_default_freq"
+                env_key = key.upper()
+                
+                # Handle lists/dicts (like rtl_config) by converting to string
+                if isinstance(value, (list, dict)):
+                    os.environ[env_key] = json.dumps(value)
+                else:
+                    os.environ[env_key] = str(value)
+        print(f"[CONFIG] Success! Loaded settings from Home Assistant.")
+    except Exception as e:
+        print(f"[CONFIG] Error loading options: {e}")
+
 
 
 class Settings(BaseSettings):
