@@ -17,7 +17,8 @@ if os.path.exists(OPTIONS_PATH):
                 # Handle lists/dicts (like rtl_config) by converting to string
                 if isinstance(value, (list, dict)):
                     os.environ[env_key] = json.dumps(value)
-                else:
+                # Only set the env var if the value is NOT empty
+                elif str(value).strip():  # <--- NEW CHECK
                     os.environ[env_key] = str(value)
         print(f"[CONFIG] Success! Loaded settings from Home Assistant.")
     except Exception as e:
