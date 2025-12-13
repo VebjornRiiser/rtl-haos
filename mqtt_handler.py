@@ -4,8 +4,8 @@ FILE: mqtt_handler.py
 DESCRIPTION:
   Manages the connection to the MQTT Broker.
   - UPDATED: 
-    1. Nuke Button is now 'config' category (hidden from Dash).
-    2. Added 'Nuke Status' text sensor for visual countdown feedback.
+    1. 'Nuke Status' now counts down (x5, x4, x3...)
+    2. Visual 'Reset' indicator when timer expires.
 """
 import json
 import threading
@@ -41,7 +41,7 @@ class HomeNodeMQTT:
         self.NUKE_THRESHOLD = 5       
         self.NUKE_TIMEOUT = 5.0       
         self.is_nuking = False        
-        self.nuke_timer = None        # Timer to reset status text
+        self.nuke_timer = None        
 
     def _on_connect(self, c, u, f, rc, p=None):
         if rc == 0:
@@ -55,8 +55,8 @@ class HomeNodeMQTT:
             # 2. Publish the Nuke Button Discovery
             self._publish_nuke_button()
 
-            # 3. Initialize Status as Idle
-            self._update_nuke_status("Safe")
+            # 3. Initialize Status with Count
+            self._update_nuke_status(f"Ready (x{self.NUKE_THRESHOLD})")
         else:
             print(f"[MQTT] Connection Failed! Code: {rc}")
 
@@ -103,7 +103,7 @@ class HomeNodeMQTT:
             "command_topic": self.nuke_command_topic,
             "unique_id": unique_id,
             "icon": "mdi:delete-alert",
-            "entity_category": "config",  # <--- HIDES FROM DEFAULT DASHBOARD
+            "entity_category": "config", 
             "device": {
                 "identifiers": [f"rtl433_{config.BRIDGE_NAME}_{sys_id}"],
                 "manufacturer": "rtl-haos",
@@ -137,7 +137,7 @@ class HomeNodeMQTT:
         """Counts presses and triggers Nuke if threshold met."""
         now = time.time()
         
-        # Reset if too much time passed
+        # If timeout passed since last press, force a full reset first
         if now - self.nuke_last_press > self.NUKE_TIMEOUT:
             self.nuke_counter = 0
         
@@ -146,22 +146,34 @@ class HomeNodeMQTT:
         
         remaining = self.NUKE_THRESHOLD - self.nuke_counter
         
-        # Cancel any pending reset timer
+        # Cancel any pending reset timer so it doesn't interrupt us
         if self.nuke_timer:
             self.nuke_timer.cancel()
 
         if remaining > 0:
-            msg = f"⚠️ ARMING: {remaining}..."
+            # VISUAL: Show Countdown
+            msg = f"⚠️ ARMING (x{remaining})"
             print(f"[NUKE] {msg}")
             self._update_nuke_status(msg)
             
-            # Reset text to Safe if they stop pressing
-            self.nuke_timer = threading.Timer(5.0, lambda: self._update_nuke_status("Safe"))
+            # Start timer to auto-reset if they stop pressing
+            self.nuke_timer = threading.Timer(self.NUKE_TIMEOUT, self._timeout_nuke_reset)
             self.nuke_timer.start()
         else:
+            # TRIGGER
             self._update_nuke_status("☢️ DETONATING ☢️")
             self.nuke_all()
             self.nuke_counter = 0
+
+    def _timeout_nuke_reset(self):
+        """Called when the user stops pressing for too long."""
+        # 1. Show 'Reset' so user knows why it went back
+        self._update_nuke_status("Timeout (Resetting...)")
+        self.nuke_counter = 0
+        
+        # 2. Wait a moment, then go back to Ready
+        time.sleep(1.5)
+        self._update_nuke_status(f"Ready (x{self.NUKE_THRESHOLD})")
 
     def nuke_all(self):
         """Activates the Search-and-Destroy protocol."""
@@ -191,7 +203,11 @@ class HomeNodeMQTT:
         print(f"[NUKE] Scan Complete. All identified entities removed.")
         self._update_nuke_status("Clean / Safe")
         
-        # Re-publish the Nuke button immediately so it doesn't disappear
+        # Wait, then return to Ready state
+        time.sleep(3)
+        self._update_nuke_status(f"Ready (x{self.NUKE_THRESHOLD})")
+        
+        # Re-publish the Nuke button immediately
         self._publish_nuke_button()
 
     def start(self):
