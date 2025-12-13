@@ -3,8 +3,9 @@
 FILE: mqtt_handler.py
 DESCRIPTION:
   Manages the connection to the MQTT Broker.
-  - UPDATED: 'Nuke' now performs a Wildcard Scan to find and delete ALL 
-    old/stale rtl-haos entities, not just current ones.
+  - UPDATED: 
+    1. Nuke Button is now 'config' category (hidden from Dash).
+    2. Added 'Nuke Status' text sensor for visual countdown feedback.
 """
 import json
 import threading
@@ -37,9 +38,10 @@ class HomeNodeMQTT:
         # --- Nuke Logic Variables ---
         self.nuke_counter = 0
         self.nuke_last_press = 0
-        self.NUKE_THRESHOLD = 5       # Presses required
-        self.NUKE_TIMEOUT = 5.0       # Seconds before counter resets
-        self.is_nuking = False        # Flag for Search-and-Destroy mode
+        self.NUKE_THRESHOLD = 5       
+        self.NUKE_TIMEOUT = 5.0       
+        self.is_nuking = False        
+        self.nuke_timer = None        # Timer to reset status text
 
     def _on_connect(self, c, u, f, rc, p=None):
         if rc == 0:
@@ -52,6 +54,9 @@ class HomeNodeMQTT:
             
             # 2. Publish the Nuke Button Discovery
             self._publish_nuke_button()
+
+            # 3. Initialize Status as Idle
+            self._update_nuke_status("Safe")
         else:
             print(f"[MQTT] Connection Failed! Code: {rc}")
 
@@ -65,11 +70,9 @@ class HomeNodeMQTT:
 
             # 2. Handle Nuke Scanning (Search & Destroy)
             if self.is_nuking:
-                # If we get an empty payload, it's likely a deletion we just did. Ignore.
                 if not msg.payload: return
 
                 try:
-                    # Decode payload to check if it's one of ours
                     payload_str = msg.payload.decode("utf-8")
                     data = json.loads(payload_str)
                     
@@ -83,10 +86,8 @@ class HomeNodeMQTT:
                             return
 
                         print(f"[NUKE] FOUND & DELETING: {msg.topic}")
-                        # Send empty payload to delete entity from HA
                         self.client.publish(msg.topic, "", retain=True)
                 except Exception:
-                    # Not JSON or irrelevant message
                     pass
 
         except Exception as e:
@@ -102,6 +103,7 @@ class HomeNodeMQTT:
             "command_topic": self.nuke_command_topic,
             "unique_id": unique_id,
             "icon": "mdi:delete-alert",
+            "entity_category": "config",  # <--- HIDES FROM DEFAULT DASHBOARD
             "device": {
                 "identifiers": [f"rtl433_{config.BRIDGE_NAME}_{sys_id}"],
                 "manufacturer": "rtl-haos",
@@ -114,9 +116,28 @@ class HomeNodeMQTT:
         config_topic = f"homeassistant/button/{unique_id}/config"
         self.client.publish(config_topic, json.dumps(payload), retain=True)
 
+    def _update_nuke_status(self, status_text):
+        """Helper to send updates to the visual status sensor."""
+        sys_id = get_system_mac().replace(":", "").lower()
+        sys_model = config.BRIDGE_NAME
+        sys_name = f"{sys_model} ({sys_id})"
+        
+        # We use send_sensor but force the naming to be clean
+        self.send_sensor(
+            sys_id, 
+            "nuke_status", 
+            status_text, 
+            sys_name, 
+            sys_model, 
+            is_rtl=False, 
+            friendly_name="Nuke Status"
+        )
+
     def _handle_nuke_press(self):
         """Counts presses and triggers Nuke if threshold met."""
         now = time.time()
+        
+        # Reset if too much time passed
         if now - self.nuke_last_press > self.NUKE_TIMEOUT:
             self.nuke_counter = 0
         
@@ -125,9 +146,20 @@ class HomeNodeMQTT:
         
         remaining = self.NUKE_THRESHOLD - self.nuke_counter
         
+        # Cancel any pending reset timer
+        if self.nuke_timer:
+            self.nuke_timer.cancel()
+
         if remaining > 0:
-            print(f"[NUKE] ARMED: Press {remaining} more times to DESTROY ALL ENTITIES.")
+            msg = f"⚠️ ARMING: {remaining}..."
+            print(f"[NUKE] {msg}")
+            self._update_nuke_status(msg)
+            
+            # Reset text to Safe if they stop pressing
+            self.nuke_timer = threading.Timer(5.0, lambda: self._update_nuke_status("Safe"))
+            self.nuke_timer.start()
         else:
+            self._update_nuke_status("☢️ DETONATING ☢️")
             self.nuke_all()
             self.nuke_counter = 0
 
@@ -140,7 +172,6 @@ class HomeNodeMQTT:
         self.is_nuking = True
         
         # Subscribe to ALL Home Assistant config topics (Wildcard)
-        # This catches 'sensor', 'binary_sensor', 'button', etc.
         self.client.subscribe("homeassistant/+/+/config")
         
         # Schedule the scan to stop in 5 seconds
@@ -158,6 +189,7 @@ class HomeNodeMQTT:
             self.tracked_devices.clear()
 
         print(f"[NUKE] Scan Complete. All identified entities removed.")
+        self._update_nuke_status("Clean / Safe")
         
         # Re-publish the Nuke button immediately so it doesn't disappear
         self._publish_nuke_button()
@@ -208,6 +240,11 @@ class HomeNodeMQTT:
                 entity_cat = None 
             if sensor_name.startswith("radio_status"):
                 entity_cat = None
+
+            # --- SPECIAL HANDLING FOR NUKE STATUS ---
+            if sensor_name == "nuke_status":
+                entity_cat = "config"
+                icon = "mdi:alert-rhombus"
 
             payload = {
                 "name": friendly_name,
