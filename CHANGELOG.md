@@ -1,5 +1,5 @@
 # Changelog
-## v1.0.33a1
+## v1.0.33
 - **NEW:** Now supports Frequency Hopping via 'hop_interval' and multiple frequencies.
 - **NEW:** Replaced rtl-haos revision entity with Device info
 ## v1.0.32
