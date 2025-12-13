@@ -4,8 +4,9 @@ FILE: mqtt_handler.py
 DESCRIPTION:
   Manages the connection to the MQTT Broker.
   - UPDATED: 
-    1. 'Nuke Status' now counts down (x5, x4, x3...)
-    2. Visual 'Reset' indicator when timer expires.
+    1. The Nuke Button now RENAMES itself dynamically (e.g. "Press 3 more...").
+    2. Includes a backup Status Sensor for logging.
+    3. Hides both from the default dashboard (entity_category='config').
 """
 import json
 import threading
@@ -52,11 +53,11 @@ class HomeNodeMQTT:
             self.nuke_command_topic = f"home/status/rtl_bridge{config.ID_SUFFIX}/nuke/set"
             c.subscribe(self.nuke_command_topic)
             
-            # 2. Publish the Nuke Button Discovery
+            # 2. Publish the Button (Default State)
             self._publish_nuke_button()
 
-            # 3. Initialize Status with Count
-            self._update_nuke_status(f"Ready (x{self.NUKE_THRESHOLD})")
+            # 3. Publish Status Sensor (Default State)
+            self._update_nuke_status(f"Ready")
         else:
             print(f"[MQTT] Connection Failed! Code: {rc}")
 
@@ -93,17 +94,22 @@ class HomeNodeMQTT:
         except Exception as e:
             print(f"[MQTT] Error handling message: {e}")
 
-    def _publish_nuke_button(self):
-        """Creates the 'Nuke Entities' button on the Bridge device."""
+    def _publish_nuke_button(self, custom_name=None, icon="mdi:delete-alert"):
+        """
+        Creates (or updates) the 'Nuke Entities' button.
+        Arguments allow changing the name/icon dynamically.
+        """
         sys_id = get_system_mac().replace(":", "").lower()
         unique_id = f"rtl_bridge_nuke{config.ID_SUFFIX}"
         
+        display_name = custom_name if custom_name else "☢️ Nuke All Entities"
+
         payload = {
-            "name": "Nuke All Entities",
+            "name": display_name,
             "command_topic": self.nuke_command_topic,
             "unique_id": unique_id,
-            "icon": "mdi:delete-alert",
-            "entity_category": "config", 
+            "icon": icon,
+            "entity_category": "config",  # Hides from default dashboard
             "device": {
                 "identifiers": [f"rtl433_{config.BRIDGE_NAME}_{sys_id}"],
                 "manufacturer": "rtl-haos",
@@ -122,7 +128,6 @@ class HomeNodeMQTT:
         sys_model = config.BRIDGE_NAME
         sys_name = f"{sys_model} ({sys_id})"
         
-        # We use send_sensor but force the naming to be clean
         self.send_sensor(
             sys_id, 
             "nuke_status", 
@@ -134,10 +139,10 @@ class HomeNodeMQTT:
         )
 
     def _handle_nuke_press(self):
-        """Counts presses and triggers Nuke if threshold met."""
+        """Counts presses, updates button name, and triggers Nuke if threshold met."""
         now = time.time()
         
-        # If timeout passed since last press, force a full reset first
+        # Timeout Reset Check
         if now - self.nuke_last_press > self.NUKE_TIMEOUT:
             self.nuke_counter = 0
         
@@ -146,34 +151,37 @@ class HomeNodeMQTT:
         
         remaining = self.NUKE_THRESHOLD - self.nuke_counter
         
-        # Cancel any pending reset timer so it doesn't interrupt us
+        # Cancel any pending reset timer
         if self.nuke_timer:
             self.nuke_timer.cancel()
 
         if remaining > 0:
-            # VISUAL: Show Countdown
-            msg = f"⚠️ ARMING (x{remaining})"
-            print(f"[NUKE] {msg}")
-            self._update_nuke_status(msg)
+            # --- DYNAMIC UPDATE ---
+            msg_short = f"⚠️ Press {remaining} more..."
             
-            # Start timer to auto-reset if they stop pressing
+            # Update Button Name immediately
+            self._publish_nuke_button(custom_name=msg_short, icon="mdi:alert-circle")
+            
+            # Update Status Sensor
+            print(f"[NUKE] {msg_short}")
+            self._update_nuke_status(f"ARMING ({remaining})")
+            
+            # Start timer to reset name if user stops
             self.nuke_timer = threading.Timer(self.NUKE_TIMEOUT, self._timeout_nuke_reset)
             self.nuke_timer.start()
         else:
-            # TRIGGER
-            self._update_nuke_status("☢️ DETONATING ☢️")
+            # --- TRIGGER ---
+            self._publish_nuke_button(custom_name="☢️ DETONATING...", icon="mdi:nuke")
+            self._update_nuke_status("DETONATING")
             self.nuke_all()
             self.nuke_counter = 0
 
     def _timeout_nuke_reset(self):
         """Called when the user stops pressing for too long."""
-        # 1. Show 'Reset' so user knows why it went back
-        self._update_nuke_status("Timeout (Resetting...)")
+        self._update_nuke_status("Timeout (Reset)")
         self.nuke_counter = 0
-        
-        # 2. Wait a moment, then go back to Ready
-        time.sleep(1.5)
-        self._update_nuke_status(f"Ready (x{self.NUKE_THRESHOLD})")
+        # Restore default button look
+        self._publish_nuke_button()
 
     def nuke_all(self):
         """Activates the Search-and-Destroy protocol."""
@@ -194,20 +202,15 @@ class HomeNodeMQTT:
         self.is_nuking = False
         self.client.unsubscribe("homeassistant/+/+/config")
         
-        # Clear internal memory too
         with self.discovery_lock:
             self.discovery_published.clear()
             self.last_sent_values.clear()
             self.tracked_devices.clear()
 
         print(f"[NUKE] Scan Complete. All identified entities removed.")
-        self._update_nuke_status("Clean / Safe")
+        self._update_nuke_status("Clean / Ready")
         
-        # Wait, then return to Ready state
-        time.sleep(3)
-        self._update_nuke_status(f"Ready (x{self.NUKE_THRESHOLD})")
-        
-        # Re-publish the Nuke button immediately
+        # Restore default button look
         self._publish_nuke_button()
 
     def start(self):
