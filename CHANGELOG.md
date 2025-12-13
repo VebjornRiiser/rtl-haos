@@ -1,4 +1,6 @@
 # Changelog
+## v1.0.35
+- **NEW:** Hop mode works with rtl-sdr autodetect (no id)
 ## v1.0.34
 - **NEW:** Now supports Frequency Hopping via 'hop_interval' and multiple frequencies.
 - **NEW:** Replaced rtl-haos revision entity with Device info
