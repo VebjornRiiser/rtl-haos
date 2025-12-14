@@ -8,7 +8,7 @@ DESCRIPTION:
   - Starts Data Processor (Throttling).
   - Starts RTL Managers (Radios).
   - Starts System Monitor.
-  - UPDATED: Smart Logging (Removes duplicate tags and ignores JSON keys).
+  - UPDATED: consistent Headers (Blue DEBUG, Purple TX, Cyan Timestamp).
 """
 import os
 import sys
@@ -25,51 +25,67 @@ import importlib.util
 import subprocess
 
 # --- 1. GLOBAL LOGGING & COLOR SETUP ---
-c_blue   = "\x1b[34m"    # Standard Blue
-c_purple = "\x1b[35m"    # Standard Purple
-c_green  = "\x1b[32m"    # Standard Green
-c_yellow = "\x1b[33m"    # Standard Yellow
-c_red    = "\x1b[31m"    # Standard Red
+c_cyan   = "\x1b[36m"    # Cyan (Timestamp)
+c_blue   = "\x1b[34m"    # Blue (DEBUG)
+c_purple = "\x1b[35m"    # Purple (TX / Subtitle)
+c_green  = "\x1b[32m"    # Green (INFO)
+c_yellow = "\x1b[33m"    # Yellow (WARNING)
+c_red    = "\x1b[31m"    # Red (ERROR)
 c_reset  = "\x1b[0m"
 
 _original_print = builtins.print
 
 def timestamped_print(*args, **kwargs):
     """
-    Smart Logging with Cleanup:
-    1. Detects Level (Debug/Error/Warning/Info).
-    2. Sets Color.
-    3. REMOVES the trigger word from the message to avoid duplicates.
+    Smart Logging with Consistent Headers:
+    [TIME] HEADER: Message
+    
+    Colors:
+    - Time: Cyan
+    - DEBUG: Blue
+    - TX: Purple
+    - WARNING: Yellow
+    - ERROR: Red
+    - INFO: Green
     """
     now = datetime.now().strftime("%H:%M:%S")
+    
+    # 1. Color the Timestamp (Cyan)
+    time_prefix = f"{c_cyan}[{now}]{c_reset}"
+    
     msg = " ".join(map(str, args))
     lower_msg = msg.lower()
     
-    # 1. DEBUG CHECK (Highest Priority)
-    # Detects "[DEBUG]" tag from rtl_manager
+    # --- HEADER DETECTION ---
+    
+    # A. DEBUG (Blue)
     if "debug" in lower_msg:
-        prefix = f"[{now}] {c_blue}DEBUG:{c_reset}"
-        # Clean the tag out so it doesn't print twice
+        header = f"{c_blue}DEBUG:{c_reset}"
+        # Clean tags
         msg = msg.replace("[DEBUG]", "").replace("[debug]", "").strip()
 
-    # 2. ERROR CHECK
-    # Removed "exception" because it appears in valid JSON (e.g. "exception": 0)
+    # B. TX (Purple) - Matches "-> TX"
+    elif "-> tx" in lower_msg:
+        header = f"{c_purple}TX:   {c_reset}" # Added spaces for alignment
+        # Clean the arrow
+        msg = msg.replace("-> TX", "").strip()
+
+    # C. ERROR (Red)
     elif any(x in lower_msg for x in ["error", "critical", "failed", "crashed"]):
-        prefix = f"[{now}] {c_red}ERROR:{c_reset}"
-        # Clean common error tags
+        header = f"{c_red}ERROR:{c_reset}"
         msg = msg.replace("CRITICAL:", "").replace("ERROR:", "").strip()
         
-    # 3. WARNING CHECK
+    # D. WARNING (Yellow)
     elif "warning" in lower_msg:
-        prefix = f"[{now}] {c_yellow}WARNING:{c_reset}"
-        # Clean the tag
+        header = f"{c_yellow}WARN: {c_reset}"
         msg = msg.replace("WARNING:", "").strip()
         
-    # 4. INFO CHECK (Default)
+    # E. INFO (Green) - Default
     else:
-        prefix = f"[{now}] {c_green}INFO:{c_reset}"
+        header = f"{c_green}INFO: {c_reset}"
     
-    _original_print(f"{prefix} {msg}", flush=True, **kwargs)
+    # Print: [TIME] HEADER: Message
+    _original_print(f"{time_prefix} {header} {msg}", flush=True, **kwargs)
 
 # Override the built-in print
 builtins.print = timestamped_print
