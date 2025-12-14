@@ -121,13 +121,15 @@ def main():
         print(f"[STARTUP] Loading {len(rtl_config)} radios from manual config.")
         
         for radio in rtl_config:
-            # Try to match the config 'id' (Serial) to a physical 'index'
-            target_id = str(radio.get("id", ""))
+            # Use new key 'Serial' (fallback to 'id' just in case)
+            target_id = str(radio.get("Serial") or radio.get("id") or "")
             
             if target_id in serial_to_index:
                 idx = serial_to_index[target_id]
                 radio['index'] = idx
-                print(f"[STARTUP] Matched Config '{radio.get('name')}' (Serial {target_id}) to Physical Index {idx}")
+                # Use new key 'Name'
+                r_name = radio.get("Name") or radio.get("name")
+                print(f"[STARTUP] Matched Config '{r_name}' (Serial {target_id}) to Physical Index {idx}")
             else:
                 print(f"[STARTUP] Warning: Configured Serial {target_id} not found in scan. Driver may fail.")
 
@@ -137,7 +139,6 @@ def main():
                 daemon=True,
             ).start()
             
-            # STAGGER DELAY (Crucial for 2+ sticks)
             print("[STARTUP] Staggering next radio start by 5 seconds...")
             time.sleep(5)
             

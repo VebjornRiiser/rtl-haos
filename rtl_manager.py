@@ -4,7 +4,7 @@ DESCRIPTION:
   Manages the 'rtl_433' subprocess interactions.
   - rtl_loop(): The main thread that reads stdout from rtl_433.
   - discover_rtl_devices(): Auto-detects MULTIPLE USB sticks.
-  - UPDATED: Now respects the 'rtl_show_timestamps' configuration toggle.
+  - UPDATED: Cleaned up config logic (Standard lowercase keys only).
 """
 import subprocess
 import json
@@ -102,16 +102,17 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
     Runs the rtl_433 process in a loop.
     Parses JSON output and passes it to data_processor.dispatch_reading().
     """
+    # --- STANDARD CONFIG MAPPING ---
     device_id = radio_config.get("id")
     device_index = radio_config.get("index")
-    
     naming_id = device_id if device_id else "0"
 
     radio_name = radio_config.get("name", f"RTL_{naming_id}")
     sample_rate = radio_config.get("rate", "250k")
-    
-    # 1. Frequency Parsing
     raw_freq = radio_config.get("freq", "433.92M")
+    hop_interval = radio_config.get("hop_interval")
+    # -------------------------------
+    
     frequencies = []
     
     if isinstance(raw_freq, list):
@@ -133,9 +134,6 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
              except ValueError:
                  pass
     # -----------------------------------
-
-    # 2. Hop Interval
-    hop_interval = radio_config.get("hop_interval")
 
     status_field = f"radio_status_{naming_id}"
     status_friendly_name = f"{radio_name}"

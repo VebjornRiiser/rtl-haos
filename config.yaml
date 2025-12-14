@@ -52,11 +52,12 @@ schema:
   # The UI will no longer show the 3 text boxes for defaults.
 
   rtl_config:
-    - name: str
-      id: str?
-      freq: str
-      rate: str?
-      hop_interval: int?
+      - name: str
+        serial: str?
+        frequency: str
+        sample_rate: str?
+        hop_seconds: int?
+
   device_blacklist:
     - str
   device_whitelist:
