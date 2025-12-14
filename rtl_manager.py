@@ -4,14 +4,15 @@ DESCRIPTION:
   Manages the 'rtl_433' subprocess interactions.
   - rtl_loop(): The main thread that reads stdout from rtl_433.
   - discover_rtl_devices(): Auto-detects MULTIPLE USB sticks.
+  - UPDATED: Adds "Last Signal" timestamp sensor.
   - UPDATED: Adds "Idle" status if no signal received for 60 seconds.
-  - UPDATED: Optimizes MQTT traffic (only sends 'Online' on status change).
-"""
+  """
 import subprocess
 import json
 import time
 import fnmatch
 import threading
+from datetime import datetime  # <--- NEW IMPORT
 import config
 from utils import clean_mac, calculate_dew_point
 
@@ -138,6 +139,8 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
     hop_interval = radio_config.get("hop_interval")
 
     status_field = f"radio_status_{naming_id}"
+    last_signal_field = f"radio_last_signal_{naming_id}"
+    
     status_friendly_name = f"{radio_name}"
     sys_name = f"{sys_model} ({sys_id})"
 
@@ -165,14 +168,14 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
 
     print(f"[RTL] Manager started for {radio_name}. Freqs: {frequencies}")
 
-    # --- NEW: SHARED STATE FOR WATCHDOG ---
-    # We use a mutable dict so the inner thread can read/write to it
+    # --- SHARED STATE FOR WATCHDOG ---
     state = {
         "last_packet": time.time(),
+        "last_mqtt_update": 0,
         "status": "Scanning..."
     }
 
-    # --- NEW: IDLE WATCHDOG THREAD ---
+    # --- IDLE WATCHDOG THREAD ---
     def watchdog_loop():
         """Checks periodically if we haven't heard anything."""
         while True:
@@ -181,7 +184,6 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
             # Timeout Threshold: 60 Seconds
             time_since_last = time.time() - state["last_packet"]
             
-            # If silent > 60s AND we are currently marked 'Online'
             if time_since_last > 60 and state["status"] == "Online":
                 state["status"] = "Idle"
                 mqtt_handler.send_sensor(
@@ -190,12 +192,11 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
                 )
                 print(f"[{radio_name}] Status set to Idle (No signal for 60s)")
 
-    # Start the watchdog as a daemon thread (dies when main app dies)
     threading.Thread(target=watchdog_loop, daemon=True).start()
     # ---------------------------------------
 
     while True:
-        # Reset Status on Loop Start (Restart/Recovery)
+        # Reset Status on Loop Start
         state["status"] = "Scanning..."
         mqtt_handler.send_sensor(
             sys_id, status_field, "Scanning...", sys_name, sys_model, 
@@ -231,14 +232,24 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
 
                 elif safe_line.startswith("{") and safe_line.endswith("}"):
                     # --- PACKET RECEIVED ---
-                    state["last_packet"] = time.time()
+                    now = time.time()
+                    state["last_packet"] = now
                     
-                    # Only update MQTT if status actually changed (Optimization)
+                    # 1. Update Status (Only if changed)
                     if state["status"] != "Online":
                         state["status"] = "Online"
                         mqtt_handler.send_sensor(
                             sys_id, status_field, "Online", sys_name, sys_model, 
                             is_rtl=True, friendly_name=status_friendly_name
+                        )
+
+                    # 2. Update Timestamp (Throttled to every 5s)
+                    if now - state["last_mqtt_update"] > 5:
+                        state["last_mqtt_update"] = now
+                        ts = datetime.now().strftime("%H:%M:%S")
+                        mqtt_handler.send_sensor(
+                            sys_id, last_signal_field, ts, sys_name, sys_model, 
+                            is_rtl=True, friendly_name=f"{radio_name} Last Signal"
                         )
 
                     try:
