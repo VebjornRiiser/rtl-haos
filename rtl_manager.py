@@ -4,7 +4,7 @@ DESCRIPTION:
   Manages the 'rtl_433' subprocess interactions.
   - rtl_loop(): The main thread that reads stdout from rtl_433.
   - discover_rtl_devices(): Auto-detects MULTIPLE USB sticks.
-  - UPDATED: Cleaned up config logic (Standard lowercase keys only).
+  - UPDATED: Uses clean Capitalized Keys (Name, Frequency) to match UI Schema.
 """
 import subprocess
 import json
@@ -102,16 +102,21 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
     Runs the rtl_433 process in a loop.
     Parses JSON output and passes it to data_processor.dispatch_reading().
     """
-    # --- STANDARD CONFIG MAPPING ---
-    device_id = radio_config.get("id")
-    device_index = radio_config.get("index")
+    # --- CLEAN CONFIG MAPPING ---
+    # These match the Capitalized Keys in config.yaml
+    device_id = radio_config.get("Serial")
+    device_index = radio_config.get("index") # Injected by main.py
+    
     naming_id = device_id if device_id else "0"
 
-    radio_name = radio_config.get("name", f"RTL_{naming_id}")
-    sample_rate = radio_config.get("rate", "250k")
-    raw_freq = radio_config.get("freq", "433.92M")
-    hop_interval = radio_config.get("hop_interval")
-    # -------------------------------
+    # Fallback to auto-name if user left "Name" blank
+    radio_name = radio_config.get("Name") or f"RTL_{naming_id}"
+    
+    # Defaults
+    sample_rate = radio_config.get("Sample_Rate") or "250k"
+    raw_freq = radio_config.get("Frequency") or "433.92M"
+    hop_interval = radio_config.get("Hop_Seconds")
+    # ----------------------------
     
     frequencies = []
     
@@ -230,7 +235,9 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
                     state["last_packet"] = now
                     
                     # --- TOGGLEABLE BEHAVIOR ---
-                    if config.RTL_SHOW_TIMESTAMPS:
+                    show_timestamps = getattr(config, "RTL_SHOW_TIMESTAMPS", False)
+
+                    if show_timestamps:
                         # OPTION A: Show "Last: HH:MM:SS"
                         if now - state["last_mqtt_update"] > 5:
                             state["last_mqtt_update"] = now

@@ -1,6 +1,6 @@
 name: "RTL-HAOS"
 description: "RTL-SDR to Home Assistant MQTT bridge with signal diagnostics and system monitoring"
-version: "1.0.35a29"
+version: "1.0.35a30"
 slug: rtl-haos
 url: "https://github.com/jaronmcd/rtl-haos"
 arch:
@@ -52,11 +52,11 @@ schema:
   # The UI will no longer show the 3 text boxes for defaults.
 
   rtl_config:
-      - name: str
-        serial: str?
-        frequency: str
-        sample_rate: str?
-        hop_seconds: int?
+      - Name: str
+        Frequency: str
+        Serial: str?
+        Sample_Rate: str?
+        Hop_Seconds: int?
 
   device_blacklist:
     - str
