@@ -4,7 +4,7 @@ DESCRIPTION:
   Manages the 'rtl_433' subprocess interactions.
   - rtl_loop(): The main thread that reads stdout from rtl_433.
   - discover_rtl_devices(): Auto-detects MULTIPLE USB sticks.
-  - UPDATED: Uses Capitalized Keys (Name, Frequency) to match clean UI Schema.
+  - UPDATED: Matches the new Capitalized keys (Name, Frequency) in config.yaml.
 """
 import subprocess
 import json
@@ -103,14 +103,21 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
     Parses JSON output and passes it to data_processor.dispatch_reading().
     """
     # --- CLEAN CONFIG MAPPING ---
-    # These match the Capitalized Keys in config.yaml
+    # These keys MUST match the Capitalized keys in config.yaml
+    
+    # Serial (was 'id')
     device_id = radio_config.get("Serial")
-    device_index = radio_config.get("index") # Injected by main.py
+    if device_id: device_id = str(device_id).strip()
+
+    # Index (injected by main.py logic)
+    device_index = radio_config.get("index")
     
     naming_id = device_id if device_id else "0"
 
-    # Fallback to auto-name if user left "Name" blank
-    radio_name = radio_config.get("Name") or f"RTL_{naming_id}"
+    # Name (was 'name')
+    radio_name = radio_config.get("Name")
+    if not radio_name:
+        radio_name = f"RTL_{naming_id}"
     
     # Defaults
     sample_rate = radio_config.get("Sample_Rate") or "250k"
@@ -234,7 +241,7 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
                     now = time.time()
                     state["last_packet"] = now
                     
-                    # --- TOGGLEABLE BEHAVIOR (Uses getattr for safety) ---
+                    # --- TOGGLEABLE BEHAVIOR ---
                     show_timestamps = getattr(config, "RTL_SHOW_TIMESTAMPS", False)
 
                     if show_timestamps:
