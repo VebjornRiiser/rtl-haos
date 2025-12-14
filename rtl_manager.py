@@ -4,8 +4,7 @@ DESCRIPTION:
   Manages the 'rtl_433' subprocess interactions.
   - rtl_loop(): The main thread that reads stdout from rtl_433.
   - discover_rtl_devices(): Auto-detects MULTIPLE USB sticks.
-  - UPDATED: Consolidated Status Sensor. 
-             Shows "Scanning..." -> Timestamp -> "Scanning..." (if silent > 10m).
+  - UPDATED: Status now shows "Sig: HH:MM:SS" to clearly indicate last reception time.
 """
 import subprocess
 import json
@@ -236,10 +235,11 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
                     if now - state["last_mqtt_update"] > 5:
                         state["last_mqtt_update"] = now
                         ts = datetime.now().strftime("%H:%M:%S")
+                        display_str = f"Sig: {ts}"  # <--- CHANGED HERE
                         
-                        state["current_display"] = ts
+                        state["current_display"] = display_str
                         mqtt_handler.send_sensor(
-                            sys_id, status_field, ts, sys_name, sys_model, 
+                            sys_id, status_field, display_str, sys_name, sys_model, 
                             is_rtl=True, friendly_name=status_friendly_name
                         )
 
