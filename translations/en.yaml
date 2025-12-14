@@ -32,7 +32,7 @@ configuration:
     name: Radio Configuration
     description: >-
       Advanced: Define multiple radios manually. Click 'Add' to configure a new stick.
-    keys:
+    fields:
       name:
         name: Radio Name
         description: A short, friendly name (e.g., 'Weather', 'Utility'). Used in logs and sensor names.
