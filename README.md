@@ -1,6 +1,6 @@
 # RTL-HAOS: RTL-433 to Home Assistant Bridge
 
-![Python Version](https://img.shields.io/badge/python-3.7%2B-blue)
+![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-MQTT-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -106,6 +106,7 @@ _The signal boost between 8:00 AM and 5:00 PM is due to the AcuRite 5-in-1 inter
 ## 📂 Project Layout (high-level)
 
 - `main.py` – Main entrypoint (starts radio manager(s), MQTT publishing, system monitoring).
+- `data_processor.py` – Handles data buffering, averaging, and throttling logic.
 - `rtl_manager.py` – Spawns/monitors `rtl_433` process(es) and handles multi-radio orchestration.
 - `mqtt_handler.py` – MQTT connection + Home Assistant MQTT Discovery publishing.
 - `system_monitor.py` / `sensors_system.py` – Host stats + radio status publishing.
@@ -151,7 +152,7 @@ At minimum, you need to configure your MQTT broker connection:
 
 ```bash
 # --- MQTT ---
-MQTT_HOST=192.168.1.100
+MQTT_HOST="192.168.1.100"
 MQTT_USER=mqtt_user
 MQTT_PASS=password
 ```
@@ -182,7 +183,13 @@ DEVICE_BLACKLIST='["SimpliSafe*", "EezTire*"]'
 # Device filtering (allow only specific devices - optional)
 DEVICE_WHITELIST='["Acurite-5n1*", "AmbientWeather*"]'
 ```
-
+**Misc Configuration:**
+```bash
+# Toggle "Last: HH:MM:SS" vs "Online" in status
+RTL_SHOW_TIMESTAMPS=false
+# Print rtl_433 JSON output
+DEBUG_RAW_JSON=true
+```
 See [.env.example](.env.example) for all available configuration options.
 
 ---
@@ -219,7 +226,7 @@ Go to the **Configuration** tab and set your options:
 
 ```yaml
 # MQTT Settings
-mqtt_host: "" # Leave blank to auto-use HA MQTT service (mqtt:want). Or set to "core-mosquitto" / your broker IP/hostname.
+mqtt_host: ""  # Leave blank to auto-use the Home Assistant MQTT service (or set to "core-mosquitto"/broker IP)
 mqtt_user: your_mqtt_user
 mqtt_pass: your_mqtt_password
 
@@ -249,6 +256,8 @@ rtl_config:
     id: "102"
     freq: 915M
     rate: 250k
+> Note: If `rtl_config` is empty, RTL-HAOS runs in “auto mode” and will attach to the first detected RTL-SDR only.
+> Configure `rtl_config` to run multiple dongles.
 
 # Device Filtering
 device_blacklist: # Block specific device patterns
@@ -372,24 +381,43 @@ uv run python main.py
 ---
 
 
-## 🧨 Maintenance: The "Nuke" Button
+## 🧨 Maintenance: Cleanup & Radio Restart
 
-If you change batteries or remove devices, old entities may linger in Home Assistant. RTL-HAOS provides a cleanup tool.
+RTL-HAOS exposes two maintenance buttons on the **Bridge** device to help with stale entities or a stuck radio process.
 
+### 🧹 Delete Entities (Press 5x)
 
-1. Navigate to **Settings** → **Devices** → **RTL-HAOS Bridge**
-2. Find the button **"Delete Entities (Press 5x)".**
-3. Press it **5 times within 5 seconds.**
-   
+If you change batteries or remove devices, old entities may linger in Home Assistant. This cleanup tool clears the **MQTT Discovery configs** RTL-HAOS created.
+
+1. Navigate to **Settings** → **Devices**
+2. Open your Bridge device (named like `rtl-haos-bridge (xxxxxxxxxxxx)`)
+3. Find the button **"Delete Entities (Press 5x)"**
+4. Press it **5 times within 5 seconds**
+
 What happens?
-  -  The bridge scans the MQTT broker for all entities it created.
-  -  It sends empty payloads to remove the "Discovery" configs.
-  -  Home Assistant instantly removes the devices.
-  -  Valid devices will reappear automatically the next time they transmit data.
+- RTL-HAOS scans retained Home Assistant discovery topics (`homeassistant/+/+/config`) for devices whose `manufacturer` contains `"rtl-haos"`.
+- It publishes empty retained payloads to remove those discovery configs.
+- Home Assistant removes the devices/entities almost immediately.
+- Valid devices reappear automatically the next time they transmit data (discovery is republished on the next reading).
 
-    
+⚠️ Note: This scan matches on `manufacturer: rtl-haos`, so if you run **multiple RTL-HAOS bridges on the same broker**, it can remove discovery entries for *all* of them.
 
-    
+### 🔁 Restart Radios
+
+If `rtl_433` gets wedged (USB hiccup, driver weirdness, no packets flowing), you can restart the radio processes without rebooting the host/add-on.
+
+1. Navigate to **Settings** → **Devices** → your Bridge device
+2. Press **"Restart Radios"**
+
+What happens?
+- RTL-HAOS terminates the running `rtl_433` process(es).
+- The radio manager automatically re-launches them.
+- The Radio Status entity will briefly show **"Rebooting..."**, then return to normal scanning/online behavior.
+
+Notes:
+- **Delete Entities** clears discovery/entities; it does *not* restart anything.
+- **Restart Radios** restarts `rtl_433`; it does *not* restart Home Assistant or the container/add-on.
+
 
 ---
 
@@ -506,5 +534,8 @@ To keep the bridge running 24/7 using the native installation method, use `syste
 - **Sensors updates are slow:**
   - Check `RTL_THROTTLE_INTERVAL`. Default is 30 seconds. Set to 0 for instant updates (not recommended for noisy environments).
 - **Ghost Devices won't delete:**
-  - Use the "Nuke" button (press 5x quickly).
-  - If that fails, use an MQTT explorer to delete topics under `homeassistant/sensor/rtl433_....`
+  - Use **Delete Entities (Press 5x)** (see **Maintenance: Cleanup & Radio Restart** above).
+  - If that still fails, use an MQTT explorer and delete the *retained* Home Assistant discovery topics created by RTL-HAOS:
+    - `homeassistant/sensor/*/config`
+    - `homeassistant/button/*/config`
+    Look for discovery payloads where `device.manufacturer` is `"rtl-haos"`.
