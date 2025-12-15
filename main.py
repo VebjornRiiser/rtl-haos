@@ -8,10 +8,11 @@ DESCRIPTION:
   - Starts Data Processor (Throttling).
   - Starts RTL Managers (Radios).
   - Starts System Monitor.
-  - UPDATED: Timestamp is now Standard White (Dimmer) for contrast.
+  - UPDATED: Source-based coloring (MQTT=Cyan, RTL=Blue, Radios=Purple).
 """
 import os
 import sys
+import re
 
 # --- 0. FORCE COLOR ENVIRONMENT ---
 os.environ["TERM"] = "xterm-256color"
@@ -25,67 +26,94 @@ import importlib.util
 import subprocess
 
 # --- 1. GLOBAL LOGGING & COLOR SETUP ---
-c_cyan   = "\x1b[36m"    # Cyan (TX - Traffic)
-c_blue   = "\x1b[34m"    # Blue (DEBUG)
-c_purple = "\x1b[35m"    # Purple (Subtitle)
-c_green  = "\x1b[32m"    # Green (INFO)
-c_yellow = "\x1b[33m"    # Yellow (WARNING)
-c_red    = "\x1b[31m"    # Red (ERROR)
-c_white  = "\x1b[37m"    # Standard White (Dimmer than default Bright White)
-c_reset  = "\x1b[0m"
+c_cyan    = "\x1b[36m"   # Cyan (TX / MQTT)
+c_blue    = "\x1b[34m"   # Blue (DEBUG / RTL)
+c_purple  = "\x1b[35m"   # Purple (Radios / Throttle)
+c_green   = "\x1b[32m"   # Green (INFO / Startup)
+c_yellow  = "\x1b[33m"   # Yellow (WARNING)
+c_red     = "\x1b[31m"   # Red (ERROR / Nuke)
+c_white   = "\x1b[37m"   # Standard White (Timestamp)
+c_reset   = "\x1b[0m"
 
 _original_print = builtins.print
 
+def get_source_color(tag_text):
+    """
+    Determines the color of the [Bracketed] source tag.
+    """
+    clean = tag_text.lower().replace("[", "").replace("]", "")
+    
+    # Infrastructure Tags
+    if "mqtt" in clean: return c_cyan
+    if "rtl" in clean: return c_blue
+    if "startup" in clean: return c_green
+    if "nuke" in clean: return c_red
+    
+    # Data Processing Tags
+    if "throttle" in clean: return c_purple
+    
+    # Default (Radio IDs like [915], [433], [SourceID])
+    return c_purple
+
 def timestamped_print(*args, **kwargs):
     """
-    Smart Logging with Distinct Colors:
-    [TIME] HEADER: Message
-    
-    Colors:
-    - Time: Standard White (Dimmer)
-    - TX: Cyan 
-    - DEBUG: Blue
-    - WARNING: Yellow
-    - ERROR: Red
-    - INFO: Green
+    Smart Logging v3 (Source Coloring):
+    1. Detect Header Level (INFO, WARN, ERROR).
+    2. Detect [Source] tag.
+    3. Apply specific color to [Source] based on origin.
     """
     now = datetime.now().strftime("%H:%M:%S")
-    
-    # 1. Color the Timestamp (Standard White - Dimmer)
     time_prefix = f"{c_white}[{now}]{c_reset}"
     
     msg = " ".join(map(str, args))
     lower_msg = msg.lower()
     
-    # --- HEADER DETECTION ---
+    # --- 1. DETERMINE HEADER LEVEL ---
+    header = f"{c_green}INFO: {c_reset}" # Default
     
-    # A. DEBUG (Blue)
-    if "debug" in lower_msg:
-        header = f"{c_blue}DEBUG:{c_reset}"
-        # Clean tags
-        msg = msg.replace("[DEBUG]", "").replace("[debug]", "").strip()
-
-    # B. TX (Cyan) - Matches "-> TX"
-    elif "-> tx" in lower_msg:
-        header = f"{c_cyan}TX:   {c_reset}" # Spaced to align
-        # Clean the arrow
-        msg = msg.replace("-> TX", "").strip()
-
-    # C. ERROR (Red)
-    elif any(x in lower_msg for x in ["error", "critical", "failed", "crashed"]):
+    # A. ERROR (Red)
+    if any(x in lower_msg for x in ["error", "critical", "failed", "crashed"]):
         header = f"{c_red}ERROR:{c_reset}"
         msg = msg.replace("CRITICAL:", "").replace("ERROR:", "").strip()
-        
-    # D. WARNING (Yellow)
+
+    # B. WARNING (Yellow)
     elif "warning" in lower_msg:
         header = f"{c_yellow}WARN: {c_reset}"
         msg = msg.replace("WARNING:", "").strip()
+
+    # C. DEBUG (Blue)
+    elif "debug" in lower_msg:
+        header = f"{c_blue}DEBUG:{c_reset}"
+        msg = msg.replace("[DEBUG]", "").replace("[debug]", "").strip()
+
+    # D. TX (Cyan)
+    elif "-> tx" in lower_msg:
+        header = f"{c_cyan}TX:   {c_reset}"
+        msg = msg.replace("-> TX", "").strip()
         
-    # E. INFO (Green) - Default
-    else:
-        header = f"{c_green}INFO: {c_reset}"
-    
-    # Print: [TIME] HEADER: Message
+        # Parse specialized TX format: "rtl-bridge... [source]: value"
+        # We want to re-format it to: "[source] TX: value"
+        match = re.match(r".*?(\[.*?\]):\s+(.*)", msg)
+        if match:
+            src_tag = match.group(1)
+            val = match.group(2)
+            
+            # Color the source based on origin
+            s_color = get_source_color(src_tag)
+            msg = f"{s_color}{src_tag}{c_reset} {val}"
+
+    # --- 2. UNIVERSAL SOURCE DETECTION ---
+    # Catches anything starting with brackets: [MQTT], [RTL], [915]
+    match = re.match(r"^(\[.*?\])\s*(.*)", msg)
+    if match:
+        source_tag = match.group(1)
+        rest_of_msg = match.group(2)
+        
+        # Color based on origin
+        s_color = get_source_color(source_tag)
+        msg = f"{s_color}{source_tag}{c_reset} {rest_of_msg}"
+
+    # Print Final
     _original_print(f"{time_prefix} {header} {msg}", flush=True, **kwargs)
 
 # Override the built-in print
