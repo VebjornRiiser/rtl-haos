@@ -8,13 +8,14 @@ DESCRIPTION:
   - Starts Data Processor (Throttling).
   - Starts RTL Managers (Radios).
   - Starts System Monitor.
-  - UPDATED: Removed "Block" style. Trying Xterm-256 'Hot Pink' (201) for vibrancy.
+  - UPDATED: COMPATIBILITY MODE. Uses basic Octal ANSI codes (No Bold, No Xterm).
 """
 import os
 import sys
 import re
 
 # --- 0. FORCE COLOR ENVIRONMENT ---
+# Even in compatibility mode, these help Python output cleanly
 os.environ["TERM"] = "xterm-256color"
 os.environ["CLICOLOR_FORCE"] = "1"
 
@@ -26,15 +27,17 @@ import importlib.util
 import subprocess
 
 # --- 1. GLOBAL LOGGING & COLOR SETUP ---
-# using xterm-256 color codes for maximum vibrancy where supported
-c_cyan    = "\x1b[1;36m"        # Bold Cyan
-c_blue    = "\x1b[1;34m"        # Bold Blue
-c_purple  = "\x1b[38;5;201m"    # Xterm Hot Pink (Code 201) - Vibrant!
-c_green   = "\x1b[1;32m"        # Bold Green
-c_yellow  = "\x1b[1;33m"        # Bold Yellow
-c_red     = "\x1b[1;31m"        # Bold Red
-c_white   = "\x1b[37m"          # Standard White (Dimmer)
-c_reset   = "\x1b[0m"
+# Basic ANSI Colors (Octal \033). 
+# We removed the "1;" (Bold) to ensure maximum compatibility.
+
+c_cyan    = "\033[36m"   # Cyan (TX / MQTT)
+c_blue    = "\033[34m"   # Blue (DEBUG / RTL)
+c_magenta = "\033[35m"   # Magenta (Sources / Throttle)
+c_green   = "\033[32m"   # Green (INFO / Startup)
+c_yellow  = "\033[33m"   # Yellow (WARN)
+c_red     = "\033[31m"   # Red (ERROR / Nuke)
+c_white   = "\033[37m"   # Standard White (Timestamp)
+c_reset   = "\033[0m"
 
 _original_print = builtins.print
 
@@ -44,21 +47,19 @@ def get_source_color(tag_text):
     """
     clean = tag_text.lower().replace("[", "").replace("]", "")
     
-    # Infrastructure Tags
+    # Infrastructure Tags -> Cyan/Blue
     if "mqtt" in clean: return c_cyan
     if "rtl" in clean: return c_blue
     if "startup" in clean: return c_green
     if "nuke" in clean: return c_red
     
-    # Data Processing Tags
-    if "throttle" in clean: return c_purple
-    
-    # Default (Radio IDs like [915], [433], [SourceID])
-    return c_purple
+    # Data Processing / Radios -> Magenta
+    return c_magenta
 
 def timestamped_print(*args, **kwargs):
     """
-    Smart Logging v7 (Xterm Colors):
+    Smart Logging v9 (Compatibility Mode):
+    Uses strict regex and basic colors to ensure visibility in HAOS logs.
     """
     now = datetime.now().strftime("%H:%M:%S")
     time_prefix = f"{c_white}[{now}]{c_reset}"
@@ -82,6 +83,7 @@ def timestamped_print(*args, **kwargs):
     # C. DEBUG (Blue)
     elif "debug" in lower_msg:
         header = f"{c_blue}DEBUG:{c_reset}"
+        # Remove explicitly passed tags from rtl_manager
         msg = msg.replace("[DEBUG]", "").replace("[debug]", "").strip()
 
     # D. TX (Cyan)
@@ -151,7 +153,7 @@ def get_version():
     return "Unknown"
 
 def show_logo(version):
-    """Prints the ASCII logo (Blue) and Subtitle (Hot Pink/Yellow)."""
+    """Prints the ASCII logo (Blue) and Subtitle (Cyan/Yellow)."""
     logo_lines = [
         r"   ____  _____  _         _   _    _    ___  ____  ",
         r"  |  _ \|_   _|| |       | | | |  / \  / _ \/ ___| ",
@@ -167,11 +169,11 @@ def show_logo(version):
     # 2. SPACER
     sys.stdout.write("\n")
     
-    # 3. Print Subtitle: Hot Pink & Yellow
+    # 3. Print Subtitle: Cyan & Yellow
     sys.stdout.write(
-        f"{c_purple}>>> RTL-SDR Bridge for Home Assistant ({c_reset}"
+        f"{c_cyan}>>> RTL-SDR Bridge for Home Assistant ({c_reset}"
         f"{c_yellow}{version}{c_reset}"
-        f"{c_purple}) <<<{c_reset}\n"
+        f"{c_cyan}) <<<{c_reset}\n"
     )
     
     # 4. Separator
