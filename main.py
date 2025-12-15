@@ -8,7 +8,7 @@ DESCRIPTION:
   - Starts Data Processor (Throttling).
   - Starts RTL Managers (Radios).
   - Starts System Monitor.
-  - UPDATED: TX Row Palette -> Green Header, Yellow Source, Blue Data.
+  - UPDATED: "Cool Spectrum" Palette. Green Header -> Cyan Source -> Blue Data.
 """
 import os
 import sys
@@ -28,10 +28,10 @@ import subprocess
 # --- 1. GLOBAL LOGGING & COLOR SETUP ---
 # Standard ANSI with Bold (1;) to force "Bright" colors on HAOS.
 
-c_cyan    = "\033[1;36m"   # Bold Cyan (General Data / RX)
-c_blue    = "\033[1;34m"   # Bold Blue (TX Data / System / DEBUG)
-c_green   = "\033[1;32m"   # Bold Green (TX Header / INFO / Startup)
-c_yellow  = "\033[1;33m"   # Bold Yellow (TX Source / WARN)
+c_cyan    = "\033[1;36m"   # Bold Cyan (Source IDs - Brightest Pop)
+c_blue    = "\033[1;34m"   # Bold Blue (Data Values / DEBUG)
+c_green   = "\033[1;32m"   # Bold Green (TX Header / INFO)
+c_yellow  = "\033[1;33m"   # Bold Yellow (WARN Only)
 c_red     = "\033[1;31m"   # Bold Red (ERROR)
 c_white   = "\033[37m"     # Standard White (Timestamp)
 c_reset   = "\033[0m"
@@ -44,19 +44,19 @@ def get_source_color(tag_text):
     """
     clean = tag_text.lower().replace("[", "").replace("]", "")
     
-    # Infrastructure -> Blue
+    # Infrastructure -> Blue (Matches System/Debug)
     if "mqtt" in clean: return c_blue
     if "rtl" in clean: return c_blue
     if "startup" in clean: return c_green
     if "nuke" in clean: return c_red
     
-    # Default Radio Data (RX) -> Cyan (Keeps RX distinct from the new TX style)
+    # Radio Data / IDs -> Cyan (Brightest available color)
     return c_cyan
 
 def timestamped_print(*args, **kwargs):
     """
-    Smart Logging v13 (Tri-Color TX):
-    TX Row Scheme: Green Header -> Yellow Source -> Blue Value
+    Smart Logging v15 (Cool Spectrum):
+    TX Row Scheme: Green Header -> Cyan Source -> Blue Value
     """
     now = datetime.now().strftime("%H:%M:%S")
     time_prefix = f"{c_white}[{now}]{c_reset}"
@@ -82,7 +82,7 @@ def timestamped_print(*args, **kwargs):
         header = f"{c_blue}DEBUG:{c_reset}"
         msg = msg.replace("[DEBUG]", "").replace("[debug]", "").strip()
 
-    # D. TX (Green -> Yellow -> Blue)
+    # D. TX (Green -> Cyan -> Blue)
     elif "-> tx" in lower_msg:
         header = f"{c_green}TX:   {c_reset}"
         msg = msg.replace("-> TX", "").strip()
@@ -93,10 +93,10 @@ def timestamped_print(*args, **kwargs):
             src_tag = match.group(1) # e.g. [radio_status_101]
             val = match.group(2)     # e.g. Last: 12:00:00
             
-            # Apply the requested Tri-Color Scheme
-            # Source = Yellow
-            # Value  = Blue
-            msg = f"{c_yellow}{src_tag}{c_reset} {c_blue}{val}{c_reset}"
+            # Apply Cool Spectrum Scheme
+            # Source = Cyan (High visibility)
+            # Value  = Blue (Data)
+            msg = f"{c_cyan}{src_tag}{c_reset} {c_blue}{val}{c_reset}"
 
     # --- 2. UNIVERSAL SOURCE DETECTION (Fallthrough for RX/System) ---
     else:
@@ -106,7 +106,7 @@ def timestamped_print(*args, **kwargs):
             source_tag = match.group(1)
             rest_of_msg = match.group(2)
             
-            # Color based on origin (RX defaults to Cyan to distinguish from TX)
+            # Color based on origin (RX defaults to Cyan)
             s_color = get_source_color(source_tag)
             msg = f"{s_color}{source_tag}{c_reset} {rest_of_msg}"
 
