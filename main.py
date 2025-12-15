@@ -8,7 +8,7 @@ DESCRIPTION:
   - Starts Data Processor (Throttling).
   - Starts RTL Managers (Radios).
   - Starts System Monitor.
-  - UPDATED: Renamed "TX" header to "DATA" for clarity.
+  - UPDATED: DEBUG JSON Values are now BOLD WHITE for high contrast.
 """
 import os
 import sys
@@ -28,13 +28,13 @@ import subprocess
 # --- 1. GLOBAL LOGGING & COLOR SETUP ---
 # Standard ANSI with Bold (1;) to force "Bright" colors on HAOS.
 
-c_cyan    = "\033[1;36m"   # Bold Cyan (Source IDs - Brightest Pop)
-c_blue    = "\033[1;34m"   # Bold Blue (DEBUG / Infrastructure)
+c_cyan    = "\033[1;36m"   # Bold Cyan (Keys / Source IDs)
+c_blue    = "\033[1;34m"   # Bold Blue (Infrastructure / DEBUG Header)
 c_green   = "\033[1;32m"   # Bold Green (DATA Header / INFO / Startup)
 c_yellow  = "\033[1;33m"   # Bold Yellow (WARN Only)
 c_red     = "\033[1;31m"   # Bold Red (ERROR)
-c_white   = "\033[1;37m"   # Bold White (DATA Values / Contrast)
-c_dim     = "\033[37m"     # Standard White (Timestamp - Dim)
+c_white   = "\033[1;37m"   # Bold White (ALL Values: JSON & DATA)
+c_dim     = "\033[37m"     # Standard White (Timestamp / Brackets)
 c_reset   = "\033[0m"
 
 _original_print = builtins.print
@@ -51,15 +51,36 @@ def get_source_color(tag_text):
     if "startup" in clean: return c_green
     if "nuke" in clean: return c_red
     
-    # Radio Data / IDs -> Cyan (Brightest available color)
+    # Radio Data / IDs -> Cyan
     return c_cyan
+
+def highlight_json(text):
+    """
+    Simple Regex-based JSON syntax highlighter using High Contrast Palette.
+    Keys = Cyan
+    Values (String, Number, Bool) = White
+    """
+    # 1. Color Keys (Strings followed by colon) -> Cyan
+    #    Pattern: "key":
+    text = re.sub(r'("[^"]+")\s*:', f'{c_cyan}\\1{c_reset}:', text)
+    
+    # 2. Color String Values (Colon followed by string) -> White
+    #    Pattern: : "value"
+    text = re.sub(r':\s*("[^"]+")', f': {c_white}\\1{c_reset}', text)
+    
+    # 3. Color Numbers (Colon followed by digits) -> White
+    #    Pattern: : 123 or : 12.34 or : -12
+    text = re.sub(r':\s*(-?\d+\.?\d*)', f': {c_white}\\1{c_reset}', text)
+    
+    # 4. Color Booleans/Null -> White
+    #    Pattern: : true, : false, : null
+    text = re.sub(r':\s*(true|false|null)', f': {c_white}\\1{c_reset}', text)
+    
+    return text
 
 def timestamped_print(*args, **kwargs):
     """
-    Smart Logging v20 (DATA Header):
-    1. Determine Header (INFO, WARN, DATA, DEBUG).
-    2. Check for Special DATA formatting.
-    3. Universal Source Coloring.
+    Smart Logging v22 (High Contrast JSON):
     """
     now = datetime.now().strftime("%H:%M:%S")
     time_prefix = f"{c_dim}[{now}]{c_reset}"
@@ -84,22 +105,22 @@ def timestamped_print(*args, **kwargs):
     # C. DEBUG (Blue)
     elif "debug" in lower_msg:
         header = f"{c_blue}DEBUG:{c_reset}"
-        # Clean the tag, let Universal Parser handle the rest
         msg = msg.replace("[DEBUG]", "").replace("[debug]", "").strip()
+        
+        # *** APPLY JSON HIGHLIGHTING (Values -> White) ***
+        if "{" in msg and "}" in msg:
+            msg = highlight_json(msg)
 
-    # D. DATA (Formerly TX) - Green -> Cyan -> White
+    # D. DATA (Green -> Cyan -> White)
     elif "-> tx" in lower_msg:
-        # Changed label from "TX:" to "DATA:"
         header = f"{c_green}DATA: {c_reset}"
         msg = msg.replace("-> TX", "").strip()
         
-        # Parse specialized format: "rtl-bridge... [source]: value"
+        # Parse specialized format
         match = re.match(r".*?(\[.*?\]):\s+(.*)", msg)
         if match:
-            src_tag = match.group(1) # e.g. [radio_status_101]
-            val = match.group(2)     # e.g. Last: 12:00:00
-            
-            # Apply Special DATA Scheme
+            src_tag = match.group(1)
+            val = match.group(2)
             msg = f"{c_cyan}{src_tag}{c_reset} {c_white}{val}{c_reset}"
             special_formatting_applied = True
 
@@ -110,10 +131,10 @@ def timestamped_print(*args, **kwargs):
             source_tag = match.group(1)
             rest_of_msg = match.group(2)
             
-            # CLEANUP: Remove "RX:" if present
+            # Clean "RX:"
             rest_of_msg = rest_of_msg.replace("RX:", "").strip()
             
-            # Color based on origin
+            # Color Source
             s_color = get_source_color(source_tag)
             msg = f"{s_color}{source_tag}{c_reset} {rest_of_msg}"
 
