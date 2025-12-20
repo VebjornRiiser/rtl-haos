@@ -39,13 +39,13 @@ def flatten(d, sep="_") -> dict:
     recurse(d)
     return obj
 
-def is_blocked_device(clean_id: str, model: str) -> bool:
+def is_blocked_device(clean_id: str, model: str, dev_type: str) -> bool:
     """Checks against Blacklist in config."""
-    patterns = getattr(config, "DEVICE_BLACKLIST", None)
-    if not patterns: return False
+    patterns = getattr(config, "DEVICE_BLACKLIST", [])
     for pattern in patterns:
         if fnmatch.fnmatch(str(clean_id), pattern): return True
         if fnmatch.fnmatch(str(model), pattern): return True
+        if fnmatch.fnmatch(str(dev_type), pattern): return True
     return False
 
 def discover_rtl_devices():
@@ -265,6 +265,7 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
                     sid = data.get("id") or data.get("channel") or "unknown"
                     clean_id = clean_mac(sid)
                     dev_name = f"{model} ({clean_id})"
+                    dev_type = data.get("type", "Untyped")
 
                     whitelist = getattr(config, "DEVICE_WHITELIST", [])
                     if whitelist:
@@ -275,7 +276,7 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
                                 break
                         if not is_allowed: continue
                     else:
-                        if is_blocked_device(clean_id, model): continue
+                        if is_blocked_device(clean_id, model, dev_type): continue
 
                     # --- UPDATED: Add [DEBUG] tag to raw output ---
                     if getattr(config, "DEBUG_RAW_JSON", False):
