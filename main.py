@@ -3,7 +3,7 @@
 FILE: main.py
 DESCRIPTION:
   The main executable script.
-  - UPDATED: Fixed "Missing ID" warning in Auto-Config mode by merging hardware details before validation.
+  - UPDATED: Added explicit Warnings when NO hardware is detected on the USB bus.
 """
 import os
 import sys
@@ -167,7 +167,9 @@ def main():
                 serial_to_index[str(d['id'])] = d['index']
         print(f"[STARTUP] Hardware Map: {serial_to_index}")
     else:
-        print("[STARTUP] Warning: No hardware detected during scan.")
+        # --- NEW WARNING: No Hardware Found ---
+        print("[STARTUP] WARNING: [Hardware] No RTL-SDR devices found on USB bus. Ensure device is plugged in and passed through to VM/Container.")
+        # --------------------------------------
 
     rtl_config = getattr(config, "RTL_CONFIG", None)
 
@@ -236,10 +238,7 @@ def main():
                 "freq": config.RTL_DEFAULT_FREQ
             }
             
-            # --- FIXED: Merge Device Data BEFORE Validation ---
-            # This ensures 'id' is present so we don't warn about missing ID in auto-mode.
             radio_setup.update(dev)
-            # --------------------------------------------------
 
             warns = validate_radio_config(radio_setup)
             for w in warns:
@@ -257,7 +256,10 @@ def main():
             ).start()
             
         else:
-            print("[STARTUP] No serials detected. Defaulting to generic device '0'.")
+            # --- UPDATED: Warning for Fallback Mode ---
+            print("[STARTUP] WARNING: [System] No hardware detected and no configuration provided. Attempting to start default device '0' (this will likely fail).")
+            # ------------------------------------------
+            
             auto_radio = {
                 "name": "RTL_auto", "id": "0",
                 "freq": config.RTL_DEFAULT_FREQ,             
