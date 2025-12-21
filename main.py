@@ -1,10 +1,9 @@
-# main.py
 #!/usr/bin/env python3
 """
 FILE: main.py
 DESCRIPTION:
   The main executable script.
-  - UPDATED: Added configuration validation using utils.validate_radio_config.
+  - UPDATED: Now warns if physical radios are detected but missing from config.
 """
 import os
 import sys
@@ -210,6 +209,9 @@ def main():
     if rtl_config:
         # --- A. MANUAL CONFIGURATION MODE ---
         print(f"[STARTUP] Loading {len(rtl_config)} radios from manual config.")
+        
+        configured_ids = set() # Track what we actually use
+
         for radio in rtl_config:
             
             # --- NEW VALIDATION CHECK ---
@@ -224,6 +226,8 @@ def main():
             if target_id and target_id in serial_to_index:
                 idx = serial_to_index[target_id]
                 radio['index'] = idx
+                configured_ids.add(target_id) # Mark as used
+                
                 r_name = radio.get("name", "Unknown")
                 print(f"[STARTUP] Matched Config '{r_name}' (Serial {target_id}) to Physical Index {idx}")
             else:
@@ -237,8 +241,16 @@ def main():
             ).start()
             time.sleep(5)
             
+        # --- DETECT UNCONFIGURED RADIOS ---
+        if detected_devices:
+            for d in detected_devices:
+                d_id = str(d.get("id"))
+                if d_id not in configured_ids:
+                    print(f"[STARTUP] WARNING: Radio (Serial {d_id}) detected but NOT configured. It is currently idle.")
+        # ----------------------------------
+            
     else:
-# --- B. SMART AUTO-CONFIGURATION MODE ---
+        # --- B. SMART AUTO-CONFIGURATION MODE ---
         if detected_devices:
             print(f"[STARTUP] Auto-detected {len(detected_devices)} radios.")
             print(f"[STARTUP] Unconfigured Mode: Starting PRIMARY radio only.")
@@ -246,9 +258,6 @@ def main():
             dev = detected_devices[0]
 
             # 1. SMART DEFAULT LOGIC
-            # Check if the default frequency string implies hopping (has commas).
-            # If NOT, we force hop_interval to 0 to prevent the startup warning,
-            # ignoring the global default of 60s.
             def_freqs = config.RTL_DEFAULT_FREQ.split(",")
             def_hop = config.RTL_DEFAULT_HOP_INTERVAL
             
@@ -261,17 +270,16 @@ def main():
                 "freq": config.RTL_DEFAULT_FREQ
             }
             
-            # --- NEW VALIDATION CHECK (Defaults) ---
             warns = validate_radio_config(radio_setup)
             for w in warns:
                 print(f"[STARTUP] DEFAULT CONFIG WARNING: {w}")
-            # ---------------------------------------
             
             print(f"[STARTUP] Radio #1 ({dev['name']}) -> Defaulting to {radio_setup['freq']}")
             
-            
+            # --- UPDATED: Warning for ignored devices ---
             if len(detected_devices) > 1:
-                print(f"[STARTUP] Note: {len(detected_devices)-1} other device(s) ignored in auto-mode. Configure them in options.json to use.")
+                print(f"[STARTUP] WARNING: {len(detected_devices)-1} other device(s) ignored in auto-mode. Configure them in options.json to use.")
+            # --------------------------------------------
 
             radio_setup.update(dev)
 
@@ -289,11 +297,10 @@ def main():
                 "hop_interval": config.RTL_DEFAULT_HOP_INTERVAL,
                 "rate": config.RTL_DEFAULT_RATE
             }
-            # --- NEW VALIDATION CHECK ---
+            
             warns = validate_radio_config(auto_radio)
             for w in warns:
                 print(f"[STARTUP] CONFIG WARNING: {w}")
-            # ----------------------------
 
             threading.Thread(
                 target=rtl_loop,

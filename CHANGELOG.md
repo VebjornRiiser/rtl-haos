@@ -1,4 +1,6 @@
 # Changelog
+## v1.1.7
+- **NEW:** Improved RTL-SDR warnings
 ## v1.1.6
 - **NEW:** RTL-SDR mis-configuratrion warnings
 ## v1.1.5
