@@ -3,7 +3,7 @@
 FILE: main.py
 DESCRIPTION:
   The main executable script.
-  - UPDATED: Safely SKIPS duplicate radios to prevent crash loops.
+  - UPDATED: Fixed "Missing ID" warning in Auto-Config mode by merging hardware details before validation.
 """
 import os
 import sys
@@ -187,14 +187,12 @@ def main():
             target_id = radio.get("id") 
             if target_id: target_id = str(target_id).strip()
             
-            # --- UPDATED: Check for Duplicates & SKIP ---
             if target_id and target_id in seen_config_ids:
                 print(f"[STARTUP] CONFIG ERROR: [Radio: {r_name}] Duplicate ID '{target_id}' found in settings. Skipping this radio to prevent conflicts.")
-                continue # Skip starting this radio entirely
+                continue 
             
             if target_id:
                 seen_config_ids.add(target_id)
-            # ---------------------------------------------
             
             if target_id and target_id in serial_to_index:
                 idx = serial_to_index[target_id]
@@ -238,6 +236,11 @@ def main():
                 "freq": config.RTL_DEFAULT_FREQ
             }
             
+            # --- FIXED: Merge Device Data BEFORE Validation ---
+            # This ensures 'id' is present so we don't warn about missing ID in auto-mode.
+            radio_setup.update(dev)
+            # --------------------------------------------------
+
             warns = validate_radio_config(radio_setup)
             for w in warns:
                 print(f"[STARTUP] DEFAULT CONFIG WARNING: [Radio: {dev_name}] {w}")
@@ -246,8 +249,6 @@ def main():
             
             if len(detected_devices) > 1:
                 print(f"[STARTUP] WARNING: [System] {len(detected_devices)-1} other device(s) ignored in auto-mode. Configure them in options.json to use.")
-
-            radio_setup.update(dev)
 
             threading.Thread(
                 target=rtl_loop,
