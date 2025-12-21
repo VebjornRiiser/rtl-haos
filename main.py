@@ -1,17 +1,10 @@
+# main.py
 #!/usr/bin/env python3
 """
 FILE: main.py
 DESCRIPTION:
   The main executable script.
-  - Checks dependencies.
-  - Starts MQTT Handler.
-  - Starts Data Processor (Throttling).
-  - Starts RTL Managers (Radios).
-  - Starts System Monitor.
-  - UPDATED: Auto-discovery logic:
-      Radio 1 -> 433.92M
-      Radio 2 -> 915M (1000k)
-      Radio 3+ -> Defaults to 433.92M + "Suggest Manual Config" log.
+  - UPDATED: Added configuration validation using utils.validate_radio_config.
 """
 import os
 import sys
@@ -61,9 +54,6 @@ def get_source_color(clean_text):
 def highlight_json(text):
     """
     Simple Regex-based JSON syntax highlighter.
-    Keys = Cyan
-    Values = White
-    Separators = White
     """
     # 1. Color Keys (Strings followed by colon) -> Cyan key, White Colon
     text = re.sub(r'("[^"]+")\s*:', f'{c_cyan}\\1{c_reset}{c_white}:{c_reset}', text)
@@ -78,7 +68,6 @@ def highlight_json(text):
 def timestamped_print(*args, **kwargs):
     """
     Smart Logging v27 (Purple Debug):
-    DEBUG header is now Magenta.
     """
     now = datetime.now().strftime("%H:%M:%S")
     time_prefix = f"{c_dim}[{now}]{c_reset}"
@@ -87,67 +76,52 @@ def timestamped_print(*args, **kwargs):
     lower_msg = msg.lower()
     
     # --- 1. DETERMINE HEADER LEVEL ---
-    # Default: Green INFO + White Colon
     header = f"{c_green}INFO{c_reset}{c_white}:{c_reset}" 
     special_formatting_applied = False
     
-    # A. ERROR (Red + White Colon)
+    # A. ERROR
     if any(x in lower_msg for x in ["error", "critical", "failed", "crashed"]):
         header = f"{c_red}ERROR{c_reset}{c_white}:{c_reset}"
         msg = msg.replace("CRITICAL:", "").replace("ERROR:", "").strip()
 
-    # B. WARNING (Yellow + White Colon)
+    # B. WARNING
     elif "warning" in lower_msg:
         header = f"{c_yellow}WARN{c_reset}{c_white}:{c_reset}"
         msg = msg.replace("WARNING:", "").strip()
 
-    # C. DEBUG (Purple/Magenta + White Colon)
+    # C. DEBUG
     elif "debug" in lower_msg:
         header = f"{c_magenta}DEBUG{c_reset}{c_white}:{c_reset}"
         msg = msg.replace("[DEBUG]", "").replace("[debug]", "").strip()
         
-        # Apply JSON Highlighting
         if "{" in msg and "}" in msg:
             msg = highlight_json(msg)
 
-    # D. DATA (Green Header + White Colon)
+    # D. DATA
     elif "-> tx" in lower_msg:
         header = f"{c_green}DATA{c_reset}{c_white}:{c_reset}"
         msg = msg.replace("-> TX", "").strip()
         
-        # Parse specialized format: "rtl-bridge... [source]: value"
         match = re.match(r".*?\[(.*?)(?:\])?:\s+(.*)", msg)
         if match:
             src_text = match.group(1).replace("]", "")
             val = match.group(2)
-            
-            # Format: White[ CyanSource White]: WhiteValue
             msg = f"{c_white}[{c_reset}{c_cyan}{src_text}{c_reset}{c_white}]:{c_reset} {c_white}{val}{c_reset}"
             special_formatting_applied = True
 
     # --- 2. UNIVERSAL SOURCE DETECTION ---
     if not special_formatting_applied:
-        # Regex catches [Content] at start of message
         match = re.match(r"^\[(.*?)\]\s*(.*)", msg)
         if match:
             src_text = match.group(1)
             rest_of_msg = match.group(2)
-            
-            # Clean "RX:" and existing colons
             rest_of_msg = re.sub(r"^(RX:?|:)\s*", "", rest_of_msg).strip()
-            
-            # Determine Color
             s_color = get_source_color(src_text)
-            
-            # Format: White[ ColorSource White]: Message
             msg = f"{c_white}[{c_reset}{s_color}{src_text}{c_reset}{c_white}]:{c_reset} {rest_of_msg}"
 
-    # Print Final
     _original_print(f"{time_prefix} {header} {msg}", flush=True, **kwargs)
 
-# Override the built-in print
 builtins.print = timestamped_print
-# ------------------------------------
 
 # --- PRE-FLIGHT DEPENDENCY CHECK ---
 def check_dependencies():
@@ -163,13 +137,12 @@ check_dependencies()
 
 import config
 from mqtt_handler import HomeNodeMQTT
-from utils import get_system_mac
+from utils import get_system_mac, validate_radio_config
 from system_monitor import system_stats_loop
 from data_processor import DataProcessor
 from rtl_manager import rtl_loop, discover_rtl_devices
 
 def get_version():
-    """Retrieves the version string from config.yaml."""
     try:
         cfg_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "config.yaml")
         if os.path.exists(cfg_path):
@@ -183,7 +156,6 @@ def get_version():
     return "Unknown"
 
 def show_logo(version):
-    """Prints the ASCII logo (Blue) and Subtitle (Cyan/Yellow)."""
     logo_lines = [
         r"   ____  _____  _         _   _    _    ___  ____  ",
         r"  |  _ \|_   _|| |       | | | |  / \  / _ \/ ___| ",
@@ -191,24 +163,15 @@ def show_logo(version):
         r"  |  _ <  | |  | | |___| |  _  |/ ___ \ |_| |___) |",
         r"  |_| \_\ |_|  |_____|   |_| |_/_/   \_\___/|____/ "
     ]
-    
-    # 1. Print Logo: Apply Blue to EACH line individually
     for line in logo_lines:
         sys.stdout.write(f"{c_blue}{line}{c_reset}\n")
-    
-    # 2. SPACER
     sys.stdout.write("\n")
-    
-    # 3. Print Subtitle: Cyan & Yellow
     sys.stdout.write(
         f"{c_cyan}>>> RTL-SDR Bridge for Home Assistant ({c_reset}"
         f"{c_yellow}{version}{c_reset}"
         f"{c_cyan}) <<<{c_reset}\n"
     )
-    
-    # 4. Separator
-    sys.stdout.write("\n")
-    sys.stdout.write("\n")
+    sys.stdout.write("\n\n")
     sys.stdout.flush()
 
 def main():
@@ -227,8 +190,7 @@ def main():
     # 4. GET SYSTEM IDENTITY
     sys_id = get_system_mac().replace(":", "").lower() 
     sys_model = config.BRIDGE_NAME
-    sys_name = f"{sys_model} ({sys_id})"
-
+    
     # --- HARDWARE MAPPING ---
     print("[STARTUP] Scanning USB bus for RTL-SDR devices...")
     detected_devices = discover_rtl_devices()
@@ -249,6 +211,13 @@ def main():
         # --- A. MANUAL CONFIGURATION MODE ---
         print(f"[STARTUP] Loading {len(rtl_config)} radios from manual config.")
         for radio in rtl_config:
+            
+            # --- NEW VALIDATION CHECK ---
+            warns = validate_radio_config(radio)
+            for w in warns:
+                print(f"[STARTUP] CONFIG WARNING: {w}")
+            # ---------------------------
+
             target_id = radio.get("id") 
             if target_id: target_id = str(target_id).strip()
             
@@ -272,40 +241,35 @@ def main():
         # --- B. SMART AUTO-CONFIGURATION MODE ---
         if detected_devices:
             print(f"[STARTUP] Auto-detected {len(detected_devices)} radios.")
-            print(f"[STARTUP] Unconfigured Mode: Auto-assigning frequencies...")
+            print(f"[STARTUP] Unconfigured Mode: Starting PRIMARY radio only.")
 
-            for i, dev in enumerate(detected_devices):
-                # 1. Base Setup
-                radio_setup = {
-                    "hop_interval": config.RTL_DEFAULT_HOP_INTERVAL,
-                    "rate": config.RTL_DEFAULT_RATE
-                }
-                
-                # 2. Smart Logic: Radio 1 = 433, Radio 2 = 915, Others = Default
-                if i == 0:
-                    radio_setup["freq"] = config.RTL_DEFAULT_FREQ # Default 433.92M
-                    print(f"[STARTUP] Radio #{i+1} ({dev['name']}) -> Defaulting to {radio_setup['freq']}")
-                elif i == 1:
-                    radio_setup["freq"] = "915M"
-                    radio_setup["rate"] = "1000k"
-                    print(f"[STARTUP] Radio #{i+1} ({dev['name']}) -> Auto-Setting to 915M (1000k)")
-                else:
-                    # Fallback for Radio 3+
-                    radio_setup["freq"] = config.RTL_DEFAULT_FREQ
-                    print(f"[STARTUP] Radio #{i+1} ({dev['name']}) -> Defaulting to {radio_setup['freq']}")
-                    print(f"[STARTUP] Hint: If this device is for 315M or 868M, please configure it manually in options.")
+            dev = detected_devices[0]
 
-                # 3. Merge Device Info and Launch
-                radio_setup.update(dev)
+            radio_setup = {
+                "hop_interval": config.RTL_DEFAULT_HOP_INTERVAL,
+                "rate": config.RTL_DEFAULT_RATE,
+                "freq": config.RTL_DEFAULT_FREQ
+            }
+            
+            # --- NEW VALIDATION CHECK (Defaults) ---
+            warns = validate_radio_config(radio_setup)
+            for w in warns:
+                print(f"[STARTUP] DEFAULT CONFIG WARNING: {w}")
+            # ---------------------------------------
+            
+            print(f"[STARTUP] Radio #1 ({dev['name']}) -> Defaulting to {radio_setup['freq']}")
+            
+            if len(detected_devices) > 1:
+                print(f"[STARTUP] Note: {len(detected_devices)-1} other device(s) ignored in auto-mode. Configure them in options.json to use.")
 
-                threading.Thread(
-                    target=rtl_loop,
-                    args=(radio_setup, mqtt_handler, processor, sys_id, sys_model),
-                    daemon=True,
-                ).start()
-                
-                # Stagger startup to avoid USB power spikes
-                time.sleep(5)
+            radio_setup.update(dev)
+
+            threading.Thread(
+                target=rtl_loop,
+                args=(radio_setup, mqtt_handler, processor, sys_id, sys_model),
+                daemon=True,
+            ).start()
+            
         else:
             print("[STARTUP] No serials detected. Defaulting to generic device '0'.")
             auto_radio = {
@@ -314,6 +278,12 @@ def main():
                 "hop_interval": config.RTL_DEFAULT_HOP_INTERVAL,
                 "rate": config.RTL_DEFAULT_RATE
             }
+            # --- NEW VALIDATION CHECK ---
+            warns = validate_radio_config(auto_radio)
+            for w in warns:
+                print(f"[STARTUP] CONFIG WARNING: {w}")
+            # ----------------------------
+
             threading.Thread(
                 target=rtl_loop,
                 args=(auto_radio, mqtt_handler, processor, sys_id, sys_model),
@@ -327,7 +297,6 @@ def main():
         daemon=True
     ).start()
 
-    # 7. MAIN LOOP
     try:
         while True: time.sleep(1)
     except KeyboardInterrupt:
