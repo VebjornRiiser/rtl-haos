@@ -3,7 +3,7 @@
 FILE: main.py
 DESCRIPTION:
   The main executable script.
-  - UPDATED: Now warns about Duplicate IDs in both Hardware (physical collisions) and Config (copy-paste errors).
+  - UPDATED: Safely SKIPS duplicate radios to prevent crash loops.
 """
 import os
 import sys
@@ -148,19 +148,17 @@ def main():
     print("[STARTUP] Scanning USB bus for RTL-SDR devices...")
     detected_devices = discover_rtl_devices()
     
-    # --- NEW: Check for Physical Duplicates (Hardware Collision) ---
+    # --- Check for Physical Duplicates (Hardware) ---
     serial_counts = {}
     if detected_devices:
         for d in detected_devices:
             sid = str(d.get('id', ''))
             serial_counts[sid] = serial_counts.get(sid, 0) + 1
-            if 'id' in d and 'index' in d:
-                pass # Just iterating to count
+            if 'id' in d and 'index' in d: pass 
 
         for sid, count in serial_counts.items():
             if count > 1:
                 print(f"[STARTUP] WARNING: [Hardware] Multiple SDRs detected with same Serial '{sid}'. IDs must be unique for precise mapping. Use rtl_eeprom to fix.")
-    # ---------------------------------------------------------------
 
     serial_to_index = {}
     if detected_devices:
@@ -177,7 +175,7 @@ def main():
         # --- A. MANUAL CONFIGURATION MODE ---
         print(f"[STARTUP] Loading {len(rtl_config)} radios from manual config.")
         configured_ids = set()
-        seen_config_ids = set() # To track duplicates in JSON
+        seen_config_ids = set()
 
         for radio in rtl_config:
             r_name = radio.get("name", "Unknown")
@@ -189,12 +187,14 @@ def main():
             target_id = radio.get("id") 
             if target_id: target_id = str(target_id).strip()
             
-            # --- NEW: Check for Configuration Duplicates (User Error) ---
+            # --- UPDATED: Check for Duplicates & SKIP ---
             if target_id and target_id in seen_config_ids:
-                print(f"[STARTUP] CONFIG WARNING: [Radio: {r_name}] Duplicate ID '{target_id}' found in settings. This radio will conflict with previous entries.")
+                print(f"[STARTUP] CONFIG ERROR: [Radio: {r_name}] Duplicate ID '{target_id}' found in settings. Skipping this radio to prevent conflicts.")
+                continue # Skip starting this radio entirely
+            
             if target_id:
                 seen_config_ids.add(target_id)
-            # -----------------------------------------------------------
+            # ---------------------------------------------
             
             if target_id and target_id in serial_to_index:
                 idx = serial_to_index[target_id]
