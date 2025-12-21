@@ -3,7 +3,7 @@
 FILE: main.py
 DESCRIPTION:
   The main executable script.
-  - UPDATED: Warnings now include the Radio Name for clarity.
+  - UPDATED: Standardized warning formats so all radio warnings use [Radio: Name/ID].
 """
 import os
 import sys
@@ -165,13 +165,12 @@ def main():
         configured_ids = set()
 
         for radio in rtl_config:
-            # --- UPDATED: Get Name First for clearer Warning ---
+            # Get Name First for clearer Warning
             r_name = radio.get("name", "Unknown")
             
             warns = validate_radio_config(radio)
             for w in warns:
                 print(f"[STARTUP] CONFIG WARNING: [Radio: {r_name}] {w}")
-            # ---------------------------
 
             target_id = radio.get("id") 
             if target_id: target_id = str(target_id).strip()
@@ -196,7 +195,8 @@ def main():
             for d in detected_devices:
                 d_id = str(d.get("id"))
                 if d_id not in configured_ids:
-                    print(f"[STARTUP] WARNING: Radio (Serial {d_id}) detected but NOT configured. It is currently idle.")
+                    # --- FIXED: Use [Radio: Serial X] format ---
+                    print(f"[STARTUP] WARNING: [Radio: Serial {d_id}] Detected but NOT configured. It is currently idle.")
             
     else:
         # --- B. SMART AUTO-CONFIGURATION MODE ---
@@ -225,7 +225,7 @@ def main():
             print(f"[STARTUP] Radio #1 ({dev['name']}) -> Defaulting to {radio_setup['freq']}")
             
             if len(detected_devices) > 1:
-                print(f"[STARTUP] WARNING: {len(detected_devices)-1} other device(s) ignored in auto-mode. Configure them in options.json to use.")
+                print(f"[STARTUP] WARNING: [System] {len(detected_devices)-1} other device(s) ignored in auto-mode. Configure them in options.json to use.")
 
             radio_setup.update(dev)
 
