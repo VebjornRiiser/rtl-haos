@@ -258,8 +258,7 @@ def main():
         else:
             # --- UPDATED: Warning for Fallback Mode ---
             print("[STARTUP] WARNING: [System] No hardware detected and no configuration provided. Attempting to start default device '0' (this will likely fail).")
-            # ------------------------------------------
-
+            
             # 1. SMART DEFAULT LOGIC
             def_freqs = config.RTL_DEFAULT_FREQ.split(",")
             def_hop = config.RTL_DEFAULT_HOP_INTERVAL
@@ -271,7 +270,7 @@ def main():
             auto_radio = {
                 "name": "RTL_auto", "id": "0",
                 "freq": config.RTL_DEFAULT_FREQ,             
-                "hop_interval": config.RTL_DEFAULT_HOP_INTERVAL,
+                "hop_interval": def_hop,   # <--- UPDATED: Use the calculated variable, not the config!
                 "rate": config.RTL_DEFAULT_RATE
             }
             
