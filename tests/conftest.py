@@ -3,9 +3,11 @@ import sys
 import os
 from unittest.mock import MagicMock
 
-# 1. Mock psutil BEFORE importing modules that use it
-sys.modules["psutil"] = MagicMock()
-
+try:
+    import psutil  # noqa: F401
+except ImportError:
+    sys.modules["psutil"] = MagicMock()
+    
 # 2. Add the parent directory to sys.path so we can import your actual modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
