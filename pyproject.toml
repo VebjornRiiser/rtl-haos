@@ -22,6 +22,11 @@ dev = [
 testpaths = ["tests"]
 addopts = "-q"
 
+markers = [
+  "integration: opt-in tests that execute rtl_433 (external process)",
+  "hardware: opt-in tests that require RTL-SDR hardware",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py39"
