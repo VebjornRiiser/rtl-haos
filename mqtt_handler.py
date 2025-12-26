@@ -359,7 +359,11 @@ class HomeNodeMQTT:
                 payload.update(extra_payload)
 
             if "version" not in sensor_name.lower() and not sensor_name.startswith("radio_status"):
-                payload["expire_after"] = config.RTL_EXPIRE_AFTER
+                # Battery status is often reported infrequently; avoid flapping to "unavailable".
+                if sensor_name == "battery_ok":
+                    payload["expire_after"] = max(int(config.RTL_EXPIRE_AFTER), 86400)
+                else:
+                    payload["expire_after"] = config.RTL_EXPIRE_AFTER
             
             payload["availability_topic"] = self.TOPIC_AVAILABILITY
 
@@ -374,7 +378,6 @@ class HomeNodeMQTT:
 
         self.tracked_devices.add(device_name)
 
-        hide_after_publish = False
         clean_id = clean_mac(sensor_id) 
         unique_id_base = clean_id
         state_topic_base = clean_id
@@ -451,25 +454,6 @@ class HomeNodeMQTT:
             if friendly_name is None:
                 friendly_name = "Battery Low"
 
-            # --- Optional: publish only when low ---
-            with self.discovery_lock:
-                discovered = unique_id_v2 in self.discovery_published
-
-            if getattr(config, "BATTERY_PUBLISH_ONLY_WHEN_LOW", False) and not low and not discovered:
-                # Track latch state but don't create a noisy entity.
-                return
-
-            # --- Optional: hide (delete discovery config) once the battery has been OK for long enough ---
-            hide_when_ok = bool(getattr(config, "BATTERY_HIDE_WHEN_OK", False))
-            hide_after = int(getattr(config, "BATTERY_HIDE_AFTER", 0) or 0)
-
-            if hide_when_ok and hide_after > 0 and not low and st.get("ok_since") is not None:
-                if (now - st["ok_since"]) >= hide_after:
-                    if not discovered:
-                        # Keep it hidden; don't recreate it.
-                        return
-                    hide_after_publish = True
-
         discovery_published_now = self._publish_discovery(
             field,
             state_topic,
@@ -488,14 +472,6 @@ class HomeNodeMQTT:
             self.client.publish(state_topic, str(out_value), retain=True)
             self.last_sent_values[unique_id_v2] = out_value
 
-            if hide_after_publish:
-                # Delete discovery config to remove the entity from HA.
-                # This is retained and will remove the entity until we recreate it on the next LOW.
-                config_topic = f"homeassistant/{domain}/{unique_id_v2}/config"
-                self.client.publish(config_topic, "", retain=True)
-                with self.discovery_lock:
-                    self.discovery_published.discard(unique_id_v2)
-                self.last_sent_values.pop(unique_id_v2, None)
             if value_changed:
                 # --- NEW: Check Verbosity Setting ---
                 if config.VERBOSE_TRANSMISSIONS:

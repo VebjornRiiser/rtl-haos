@@ -246,12 +246,7 @@ debug_raw_json: false # Print raw rtl_433 JSON for debugging
 # Battery alert behavior (battery_ok -> Battery Low binary_sensor)
 # 0 clears immediately on next OK
 battery_ok_clear_after: 300
-# If true, Battery Low entity is only created/published when LOW is observed
-battery_publish_only_when_low: false
-# If true, delete the entity after stable OK (it will reappear next time LOW)
-battery_hide_when_ok: false
-# Seconds battery must remain OK before deleting entity (0 disables)
-battery_hide_after: 0
+# Note: Battery Low uses a long MQTT expire_after (24h+) to avoid going 'unavailable' for devices that report battery infrequently.
 
 # Multi-Radio Configuration (leave empty for auto-detection)
 rtl_config:

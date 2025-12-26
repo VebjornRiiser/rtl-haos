@@ -149,25 +149,6 @@ class Settings(BaseSettings):
         description="Seconds battery_ok must be OK before clearing a low alert (0 disables).",
     )
 
-    # If True, do not create/publish the battery entity unless a LOW is observed.
-    battery_publish_only_when_low: bool = Field(
-        default=False,
-        description="Only publish the Battery Low entity when the battery is LOW.",
-    )
-
-    # If True, remove the entity from HA after it has been OK for a while.
-    battery_hide_when_ok: bool = Field(
-        default=False,
-        description="Delete the Battery Low entity after it has been OK for a while.",
-    )
-
-    # Seconds battery must remain OK (after latch clears) before deleting discovery config.
-    # 0 disables auto-hide.
-    battery_hide_after: int = Field(
-        default=0,
-        description="Seconds battery must remain OK before hiding the entity (0 disables).",
-    )
-
     @property
     def id_suffix(self) -> str:
         return "_v2" if self.force_new_ids else ""
@@ -211,6 +192,3 @@ VERBOSE_TRANSMISSIONS = settings.verbose_transmissions
 
 # Battery behavior
 BATTERY_OK_CLEAR_AFTER = settings.battery_ok_clear_after
-BATTERY_PUBLISH_ONLY_WHEN_LOW = settings.battery_publish_only_when_low
-BATTERY_HIDE_WHEN_OK = settings.battery_hide_when_ok
-BATTERY_HIDE_AFTER = settings.battery_hide_after
