@@ -423,6 +423,23 @@ Notes:
 
 ---
 
+### 🪫 Battery Low (battery_ok)
+
+If `rtl_433` reports a `battery_ok` field for a device, RTL-HAOS publishes a Home Assistant
+**Battery Low** `binary_sensor`:
+
+- `battery_ok = 0` → **Battery Low = ON** (LOW)
+- `battery_ok = 1` → **Battery Low = OFF** (OK)
+
+**Battery clear delay:** `battery_ok_clear_after` controls when LOW clears:
+
+- `0` clears LOW immediately on the next OK report
+- `>0` clears LOW only after `battery_ok` has remained OK for that many seconds (helps prevent flapping)
+
+> Note: Many devices report battery infrequently. Battery Low uses a long MQTT `expire_after`
+> (24h minimum) so it won’t quickly flip to “unavailable” just because no new `battery_ok`
+> value was included in recent packets.
+
 ## 🔧 Advanced: Multi-Radio Setup (Critical)
 
 If you plan to use multiple RTL-SDR dongles (e.g., one for 433MHz and one for 915MHz), you **must** assign them unique serial numbers. By default, most dongles share the serial `00000001`, which causes conflicts where the system swaps "Radio A" and "Radio B" after a reboot.
