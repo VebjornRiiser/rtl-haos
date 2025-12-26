@@ -1,7 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyd
+*.py[cod]
 *.so
 
 # Do not commit local config with real credentials
@@ -10,12 +9,19 @@ __pycache__/
 # Environments
 venv/
 .venv/
+.venv-*/
 
 # Distribution / Packaging
 .Python
 build/
 dist/
 *.egg-info/
+
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 # Logs and Data
 *.log

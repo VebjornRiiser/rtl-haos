@@ -1,6 +1,6 @@
 [project]
 name = "rtl-haos"
-version = "1.1.10"
+version = "1.1.11"
 description = "RTL-SDR to Home Assistant MQTT bridge"
 readme = "README.md"
 requires-python = ">=3.9"

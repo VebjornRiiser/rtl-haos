@@ -31,6 +31,14 @@ See rtl_433 documentation for supported devices: https://github.com/merbanan/rtl
 
 ---
 
+
+## 📚 Documentation
+
+- **Configuration**: `docs/CONFIG.md`
+- **MQTT topics & discovery**: `docs/MQTT.md`
+- **Multi-radio setup**: `docs/MULTI_RADIO.md`
+- **Development & testing**: `docs/DEVELOPMENT.md`
+
 ## 🧩 How It Works
 
 ```mermaid
@@ -106,12 +114,15 @@ _The signal boost between 8:00 AM and 5:00 PM is due to the AcuRite 5-in-1 inter
 ## 📂 Project Layout (high-level)
 
 - `main.py` – Main entrypoint (starts radio manager(s), MQTT publishing, system monitoring).
-- `data_processor.py` – Handles data buffering, averaging, and throttling logic.
 - `rtl_manager.py` – Spawns/monitors `rtl_433` process(es) and handles multi-radio orchestration.
+- `data_processor.py` – Handles buffering, averaging, and throttling.
 - `mqtt_handler.py` – MQTT connection + Home Assistant MQTT Discovery publishing.
 - `system_monitor.py` / `sensors_system.py` – Host stats + radio status publishing.
-- `field_meta.py` – Field metadata (units, device_class/state_class, icons, etc.).
-- `utils.py` – Shared helpers (IDs, formatting, derived fields like dew point, etc.).
+- `field_meta.py` – Field metadata (units, device class, icons, etc.).
+- `utils.py` – Shared helpers (IDs, formatting, derived fields like dew point).
+- `docs/` – Deeper documentation (config, MQTT, multi-radio, development/testing).
+- `scripts/` – Developer helper scripts (test venv, fixture recording).
+- `tests/` – Unit tests + opt-in integration/hardware tests.
 - `docker-compose.yml` – Docker/Compose runtime.
 - `repository.yaml` – Home Assistant add-on repository descriptor.
 
@@ -126,6 +137,8 @@ _The signal boost between 8:00 AM and 5:00 PM is due to the AcuRite 5-in-1 inter
 ---
 
 ## ⚙️ Configuration
+
+Full configuration reference: **`docs/CONFIG.md`**.
 
 > **Note:** If you're using the **Home Assistant Add-on**, skip this section and go directly to [Installation](#-installation). Add-on configuration is done through the Home Assistant UI.
 
@@ -346,6 +359,8 @@ uv sync
 
 ## ▶️ Usage
 
+MQTT topic details: **`docs/MQTT.md`**.
+
 ### Home Assistant Add-on
 
 Once the add-on is running, sensors will automatically appear in Home Assistant via MQTT Discovery. Check the add-on logs for status:
@@ -440,38 +455,11 @@ If `rtl_433` reports a `battery_ok` field for a device, RTL-HAOS publishes a Hom
 > (24h minimum) so it won’t quickly flip to “unavailable” just because no new `battery_ok`
 > value was included in recent packets.
 
-## 🔧 Advanced: Multi-Radio Setup (Critical)
+## 🔧 Advanced: Multi-Radio Setup
 
-If you plan to use multiple RTL-SDR dongles (e.g., one for 433MHz and one for 915MHz), you **must** assign them unique serial numbers. By default, most dongles share the serial `00000001`, which causes conflicts where the system swaps "Radio A" and "Radio B" after a reboot.
+If you plan to run multiple RTL-SDR dongles (e.g. 433 MHz + 915 MHz), you **must** give each dongle a unique serial number and then configure `rtl_config` to pin each radio to its frequency.
 
-### ⚠️ Step 1: Safety First (Backup EEPROM)
-
-Before modifying your hardware, it is good practice to dump the current EEPROM image. This allows you to restore the dongle if something goes wrong.
-
-1.  Stop any running services (e.g., `sudo systemctl stop rtl-bridge`).
-2.  Plug in **ONE** dongle.
-3.  Run the backup command:
-    ```bash
-    rtl_eeprom -r original_backup.bin
-    ```
-    _This saves a binary file `original_backup.bin` to your current folder._
-
-### Step 2: Set New Serial Number
-
-1.  With only one dongle plugged in, run:
-    ```bash
-    rtl_eeprom -s 101
-    ```
-    _(Replace `101` with your desired ID, e.g., 102, 103)._
-2.  **Unplug and Replug** the dongle to apply the change.
-3.  Verify the new serial:
-    ```bash
-    rtl_test
-    # Output should show: SN: 101
-    ```
-4.  Repeat for your other dongles (one at a time).
-
-> **Restoration:** If you ever need to restore the backup, use: `rtl_eeprom -w original_backup.bin`
+See **`docs/MULTI_RADIO.md`** for the full, step-by-step EEPROM/serial guide and `status_id` tips.
 
 ---
 
@@ -558,69 +546,6 @@ To keep the bridge running 24/7 using the native installation method, use `syste
     - `homeassistant/sensor/*/config`
     - `homeassistant/button/*/config`
     Look for discovery payloads where `device.manufacturer` is `"rtl-haos"`.
-## Testing
+## 🧪 Development & Testing
 
-### Unit tests (default)
-
-Run the normal unit test suite (fast, deterministic):
-
-```bash
-pytest
-```
-
-### Opt-in `rtl_433` integration tests
-
-These tests execute the external `rtl_433` binary and are **skipped by default** (so GitHub Actions / CI stays green).
-
-Run the integration tests:
-
-```bash
-RUN_RTL433_TESTS=1 pytest -m integration
-```
-
-Run only the replay test:
-
-```bash
-RUN_RTL433_TESTS=1 pytest -m integration -k rtl433_replay
-```
-
-#### Recording a replay fixture (recommended)
-
-Replay fixtures live in `tests/fixtures/rtl433/` (see `tests/fixtures/rtl433/README.md`). Capture files like `.cu8` are intentionally **gitignored**.
-
-Record a short capture:
-
-```bash
-mkdir -p tests/fixtures/rtl433
-./scripts/record_rtl433_fixture.sh 433.92M 250k 20 tests/fixtures/rtl433/sample.cu8
-```
-
-Sanity-check the capture decodes:
-
-```bash
-rtl_433 -r tests/fixtures/rtl433/sample.cu8 -F json | head
-```
-
-### Opt-in hardware smoke tests (RTL-SDR required)
-
-These require an RTL-SDR device available to the test host. They do **not** require receiving RF events; they only verify `rtl_433` starts and exits cleanly.
-
-```bash
-RUN_HARDWARE_TESTS=1 pytest -m hardware
-```
-
-### Run everything locally (unit + integration + hardware)
-
-```bash
-RUN_RTL433_TESTS=1 RUN_HARDWARE_TESTS=1 pytest
-```
-
-### Script argument guardrails (no hardware)
-
-The fixture-recording script supports unit suffixes and a dry-run mode:
-
-```bash
-./scripts/record_rtl433_fixture.sh --dry-run 433.92M 250k 10 tests/fixtures/rtl433/test.cu8
-```
-
-If you forget a suffix (e.g. `433.92` instead of `433.92M`, or `250` instead of `250k`), the script will fail fast with a helpful hint.
+See **`docs/DEVELOPMENT.md`**.
