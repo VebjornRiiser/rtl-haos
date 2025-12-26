@@ -44,4 +44,3 @@ Before modifying your hardware, it is good practice to dump the current EEPROM i
 
 ---
 
-## 🤖 Running as a Service
