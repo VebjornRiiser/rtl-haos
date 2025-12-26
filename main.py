@@ -35,6 +35,8 @@ _original_print = builtins.print
 
 def get_source_color(clean_text):
     clean = clean_text.lower()
+    if "unsupported" in clean: return c_yellow
+    if "supported" in clean: return c_green
     if "mqtt" in clean: return c_magenta
     if "rtl" in clean: return c_magenta
     if "startup" in clean: return c_magenta
@@ -46,6 +48,24 @@ def highlight_json(text):
     text = re.sub(r':\s*("[^"]+")', f': {c_white}\\1{c_reset}', text)
     text = re.sub(r':\s*(-?\d+\.?\d*)', f': {c_white}\\1{c_reset}', text)
     text = re.sub(r':\s*(true|false|null)', f': {c_white}\\1{c_reset}', text)
+    return text
+
+def highlight_support_tags(text: str) -> str:
+    # Normalize common variants (so old logs still color nicely)
+    text = re.sub(r"\[\s*!!\s*UNSUPPORTED\s*!!\s*\]", "[UNSUPPORTED]", text)
+    text = re.sub(r"\[\s*SUPPORTED\s*\]", "[SUPPORTED]", text)
+
+    # Colorize tags anywhere in the line
+    text = re.sub(
+        r"\[UNSUPPORTED\]",
+        f"{c_white}[{c_reset}{c_yellow}UNSUPPORTED{c_reset}{c_white}]{c_reset}",
+        text,
+    )
+    text = re.sub(
+        r"\[SUPPORTED\]",
+        f"{c_white}[{c_reset}{c_green}SUPPORTED{c_reset}{c_white}]{c_reset}",
+        text,
+    )
     return text
 
 def timestamped_print(*args, **kwargs):
@@ -86,6 +106,7 @@ def timestamped_print(*args, **kwargs):
             s_color = get_source_color(src_text)
             msg = f"{c_white}[{c_reset}{s_color}{src_text}{c_reset}{c_white}]:{c_reset} {rest_of_msg}"
 
+        msg = highlight_support_tags(msg)
     _original_print(f"{time_prefix} {header} {msg}", flush=True, **kwargs)
 
 builtins.print = timestamped_print
@@ -182,7 +203,9 @@ def main():
         configured_ids = set()
         seen_config_ids = set()
 
-        for radio in rtl_config:
+        for slot, radio in enumerate(rtl_config):
+            radio.setdefault("slot", slot)  # fallback when 'id' is missing
+
             r_name = radio.get("name", "Unknown")
             
             warns = validate_radio_config(radio)
@@ -237,6 +260,7 @@ def main():
             if len(def_freqs) < 2: def_hop = 0
 
             radio_setup = {
+                "slot": 0,
                 "hop_interval": def_hop,
                 "rate": config.RTL_DEFAULT_RATE,
                 "freq": config.RTL_DEFAULT_FREQ
@@ -272,6 +296,7 @@ def main():
                 def_hop = 0
 
             auto_radio = {
+                "slot": 0,
                 "name": "RTL_auto", "id": "0",
                 "freq": config.RTL_DEFAULT_FREQ,             
                 "hop_interval": def_hop,   # <--- UPDATED: Use the calculated variable, not the config!

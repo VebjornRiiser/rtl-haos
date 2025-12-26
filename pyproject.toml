@@ -1,14 +1,14 @@
 [project]
 name = "rtl-haos"
-version = "1.1.10"
+version = "1.1.11"
 description = "RTL-SDR to Home Assistant MQTT bridge"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "paho-mqtt==2.1.0",
     "psutil==7.0.0",
+    "pydantic>=2.0.0",
     "pydantic-settings>=2.11.0",
-    "rich>=13.0.0",
 ]
 
 [project.optional-dependencies]
@@ -21,6 +21,11 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+markers = [
+  "integration: opt-in tests that execute rtl_433 (external process)",
+  "hardware: opt-in tests that require RTL-SDR hardware",
+]
 
 [tool.ruff]
 line-length = 100
@@ -45,3 +50,15 @@ known-first-party = [
   "utils",
   "field_meta",
 ]
+
+[tool.coverage.run]
+branch = true
+source = ["."]
+omit = [
+  "tests/*",
+  "*/__init__.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

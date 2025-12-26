@@ -1,7 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyd
+*.py[cod]
 *.so
 
 # Do not commit local config with real credentials
@@ -10,12 +9,19 @@ __pycache__/
 # Environments
 venv/
 .venv/
+.venv-*/
 
 # Distribution / Packaging
 .Python
 build/
 dist/
 *.egg-info/
+
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 # Logs and Data
 *.log
@@ -24,3 +30,14 @@ dist/
 # OS/Editor artifacts
 .DS_Store
 *~
+
+# rtl_433 replay / rtl_sdr captures (large binary fixtures)
+tests/fixtures/rtl433/*.cu8
+tests/fixtures/rtl433/*.cs8
+tests/fixtures/rtl433/*.cfile
+tests/fixtures/rtl433/*.iq
+tests/fixtures/rtl433/*.wav
+
+# (optional) anything dropped into the rtl433 fixture folder
+tests/fixtures/rtl433/*
+!tests/fixtures/rtl433/README.md

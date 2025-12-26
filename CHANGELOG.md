@@ -1,4 +1,18 @@
 # Changelog
+
+## v1.1.11
+
+### Fixes
+- **FIX:** Restore reliable host radio status publishing.
+- **FIX:** Improve JSON debug logging (safer and clearer).
+
+### Dev tooling / tests
+- **NEW:** Helper script to record `rtl_433` IQ fixtures (`scripts/record_rtl433_fixture.sh`).
+- **NEW:** Expanded unit tests and added opt-in markers (`integration`, `hardware`).
+
+### Docs
+- **DOCS:** Added `docs/` pages (config, MQTT topics, multi-radio, development/testing).
+- **DOCS:** README reorganized and linked to deeper docs.
 ## v1.1.10
 ### New: Low Battery alert
 - **NEW:** Adds a Home Assistant **Battery Low** `binary_sensor` based on `battery_ok`.

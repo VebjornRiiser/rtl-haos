@@ -23,6 +23,7 @@ FIELD_META = {
     "sys_disk":             ("%", "none", "mdi:harddisk", "Disk Usage"),
     "sys_temp":             ("°C", "temperature", "mdi:thermometer-lines", "CPU Temp"),
     "sys_uptime":           ("s", "duration", "mdi:clock-start", "System Uptime"),
+    "model":                ("", "none", "mdi:tag", "Model"),
 
     # --- Magnetometer ---
     "mag_uT":               ("uT", "none", "mdi:magnet", "Mag Field Strength"),
@@ -70,6 +71,7 @@ FIELD_META = {
     "strikes":              ("count", "none", "mdi:flash", "Lightning Strikes"),
     "strike_distance":      ("km", "distance", "mdi:flash-alert", "Storm Distance"),
     "storm_dist":           ("km", "distance", "mdi:flash-alert", "Storm Distance"),
+    "strike_count":         (None, "none", "mdi:lightning-bolt", "Strike Count"),
 
     # --- Soil Moisture ---
     "moisture":            ("%", "moisture", "mdi:water-percent", "Soil Moisture"),
@@ -87,8 +89,9 @@ FIELD_META = {
     "id":                   ("", "none", "mdi:identifier", "Device ID"),
     "channel":              ("", "none", "mdi:radio-tower", "Channel"),
     "mic":                  ("", "none", "mdi:check-network", "Integrity Check"),
-    "radio_status":         ("", "none", "mdi:usb-port", "Radio Status"),
-
+    "radio_status":         ("", "none", "mdi:radio-tower", "Radio Status"),
+    "rfi":                  (None, "none", "mdi:radio-tower", "RFI"),
+    
     # --- Utility Meters ---
     "Consumption":          ("ft³", "gas", "mdi:fire", "Gas Usage"),
     "consumption":          ("ft³", "gas", "mdi:fire", "Gas Usage"),

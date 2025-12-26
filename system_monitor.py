@@ -12,10 +12,19 @@ import sys
 import importlib.util
 import socket
 # --- IMPORTS & DEPENDENCY CHECK ---
+# NOTE: During unit tests, conftest may inject a dummy "psutil" into sys.modules.
+# Some mocks (e.g. MagicMock) don't provide __spec__, which can cause
+# importlib.util.find_spec("psutil") to raise ValueError. Treat that the same
+# as "psutil not available".
 PSUTIL_AVAILABLE = False
 try:
-    if importlib.util.find_spec("psutil") is not None:
-        import psutil
+    try:
+        psutil_spec = importlib.util.find_spec("psutil")
+    except ValueError:
+        psutil_spec = None
+
+    if psutil_spec is not None:
+        import psutil  # noqa: F401
         from sensors_system import SystemMonitor
         PSUTIL_AVAILABLE = True
     else:
@@ -23,6 +32,7 @@ try:
 except ImportError as e:
     PSUTIL_AVAILABLE = False
     print(f"[WARN] System Monitoring disabled: {e}")
+
 
 # Safe imports for the rest of the app
 import config
