@@ -1,4 +1,6 @@
 # Changelog
+## v1.1.11
+- **FIX:** Host radio status restorted
 ## v1.1.10
 ### New: Low Battery alert
 - **NEW:** Adds a Home Assistant **Battery Low** `binary_sensor` based on `battery_ok`.
