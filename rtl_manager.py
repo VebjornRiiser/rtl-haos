@@ -7,6 +7,8 @@ import subprocess
 import json
 import time
 import fnmatch
+import copy
+import sys
 from datetime import datetime
 from typing import Optional
 
@@ -106,6 +108,100 @@ def flatten(d, sep="_") -> dict:
     recurse(d)
     return obj
 
+def _debug_dump_packet(
+    *,
+    raw_line: str,
+    data_raw: dict,
+    data_processed: dict,
+    radio_name: str,
+    radio_freq: str,
+    model: str,
+    clean_id: str,
+) -> None:
+    """
+    Debug helper for reverse-engineering unknown devices.
+
+    Goals:
+      - Preserve a copy/paste-friendly raw JSON line (no log prefixes).
+      - Surface the rtl_433-provided timestamp ("time") clearly.
+      - Show the flattened keys exactly as this bridge will treat them.
+      - Show which fields will be published and which are missing FIELD_META.
+    """
+    try:
+        from field_meta import FIELD_META
+    except Exception:
+        FIELD_META = {}
+
+    skip = set(getattr(config, "SKIP_KEYS", []) or [])
+    rtl_time = None
+    try:
+        rtl_time = (data_raw or {}).get("time")
+    except Exception:
+        rtl_time = None
+
+    # Summary (goes through timestamped_print wrapper)
+    print(
+        f"[JSONDUMP] radio={radio_name} freq={radio_freq} model={model} id={clean_id} rtl_time={rtl_time or 'Unknown'}"
+    )
+
+    # Raw JSON (must be copy/paste-friendly; bypass timestamped_print)
+    print("[JSONDUMP] RAW_JSON_BEGIN (copy the next line)")
+    try:
+        sys.__stdout__.write(raw_line.rstrip("\n") + "\n")
+        sys.__stdout__.flush()
+    except Exception:
+        # Fallback if stdout is unavailable
+        print(raw_line)
+    print("[JSONDUMP] RAW_JSON_END")
+
+    flat_raw = flatten(data_raw or {})
+    flat_proc = flatten(data_processed or {})
+
+    def _fmt(v):
+        if isinstance(v, float):
+            return f"{v:.6g}"
+        return repr(v)
+
+    print(f"[JSONDUMP] RAW keys ({len(flat_raw)}):")
+    for k in sorted(flat_raw.keys()):
+        v = flat_raw[k]
+        t = type(v).__name__
+        print(f"[JSONDUMP]   {k} = {_fmt(v)} ({t})")
+
+    # Build publish plan (mirrors dispatch logic below)
+    planned = []
+    for key, value in flat_proc.items():
+        if key in skip:
+            continue
+
+        if key in ["temperature_C", "temp_C"] and isinstance(value, (int, float)):
+            planned.append({"field": "temperature", "value": round(value * 1.8 + 32.0, 1), "source": key})
+        elif key in ["temperature_F", "temp_F", "temperature"] and isinstance(value, (int, float)):
+            planned.append({"field": "temperature", "value": value, "source": key})
+        else:
+            planned.append({"field": key, "value": value, "source": key})
+
+    print(f"[JSONDUMP] PUBLISH plan ({len(planned)} fields):")
+    missing = set()
+    for item in planned:
+        field = item["field"]
+        value = item["value"]
+        source = item["source"]
+
+        meta = FIELD_META.get(field)
+        if meta:
+            unit, dev_class, icon, friendly = meta
+            meta_s = f"unit={unit or '-'} class={dev_class or '-'} name={friendly or '-'}"
+        else:
+            meta_s = "(NO FIELD_META)"
+            missing.add(field)
+
+        print(f"[JSONDUMP]   {field} = {_fmt(value)}  <= {source}  {meta_s}")
+
+    if missing:
+        print(f"[JSONDUMP] Missing FIELD_META ({len(missing)}): {', '.join(sorted(missing))}")
+
+    print("[JSONDUMP] END\n")
 
 def is_blocked_device(clean_id: str, model: str, dev_type: str) -> bool:
     patterns = getattr(config, "DEVICE_BLACKLIST", [])
@@ -261,6 +357,14 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
                 try:
                     data = json.loads(raw)
 
+                    data_raw = None
+                    if getattr(config, "DEBUG_RAW_JSON", False):
+                        try:
+                            data_raw = copy.deepcopy(data)
+                        except Exception:
+                            data_raw = None
+
+
                     # Mark online once we see valid JSON
                     now = time.time()
                     if config.RTL_SHOW_TIMESTAMPS:
@@ -325,6 +429,18 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
                             )
 
                     # Flatten + dispatch
+                    # Flatten + dispatch
+                    if getattr(config, "DEBUG_RAW_JSON", False):
+                        _debug_dump_packet(
+                            raw_line=raw,
+                            data_raw=data_raw or data,
+                            data_processed=data,
+                            radio_name=radio_name,
+                            radio_freq=freq_display,
+                            model=model,
+                            clean_id=clean_id,
+                        )
+
                     flat = flatten(data)
                     for key, value in flat.items():
                         if key in getattr(config, "SKIP_KEYS", []):
