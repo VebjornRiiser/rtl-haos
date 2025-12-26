@@ -182,7 +182,9 @@ def main():
         configured_ids = set()
         seen_config_ids = set()
 
-        for radio in rtl_config:
+        for slot, radio in enumerate(rtl_config):
+            radio.setdefault("slot", slot)  # fallback when 'id' is missing
+
             r_name = radio.get("name", "Unknown")
             
             warns = validate_radio_config(radio)
@@ -237,6 +239,7 @@ def main():
             if len(def_freqs) < 2: def_hop = 0
 
             radio_setup = {
+                "slot": 0,
                 "hop_interval": def_hop,
                 "rate": config.RTL_DEFAULT_RATE,
                 "freq": config.RTL_DEFAULT_FREQ
@@ -272,6 +275,7 @@ def main():
                 def_hop = 0
 
             auto_radio = {
+                "slot": 0,
                 "name": "RTL_auto", "id": "0",
                 "freq": config.RTL_DEFAULT_FREQ,             
                 "hop_interval": def_hop,   # <--- UPDATED: Use the calculated variable, not the config!
