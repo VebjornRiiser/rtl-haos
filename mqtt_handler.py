@@ -253,7 +253,7 @@ class HomeNodeMQTT:
             self.last_sent_values.clear()
             self.tracked_devices.clear()
 
-        print(f"[NUKE] Scan Complete. All identified entities removed.")
+        print("[NUKE] Scan Complete. All identified entities removed.")
         self.client.publish(self.TOPIC_AVAILABILITY, "online", retain=True)
         self._publish_nuke_button()
         self._publish_restart_button()

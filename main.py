@@ -225,7 +225,8 @@ def main():
         # --- B. SMART AUTO-CONFIGURATION MODE ---
         if detected_devices:
             print(f"[STARTUP] Auto-detected {len(detected_devices)} radios.")
-            print(f"[STARTUP] Unconfigured Mode: Starting PRIMARY radio only.")
+            print("[STARTUP] Unconfigured Mode: Starting PRIMARY radio only.")
+
 
             dev = detected_devices[0]
             dev_name = dev.get("name", "Primary")
