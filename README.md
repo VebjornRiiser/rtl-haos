@@ -24,7 +24,7 @@ See rtl_433 documentation for supported devices: https://github.com/merbanan/rtl
     - **EU/UK/EEA/CH:** 868 MHz
     - **US/CA/AU/NZ (and most others):** 915 MHz
     - If Home Assistant country is unknown, it will hop 868/915 on Radio #2
-  - **Radio #3 (if present):** a regional hopper for “interesting” bands that **does not intentionally overlap** Radio #1/#2.
+  - **Radio #3 (if present):** a regional hopper for “interesting” bands that **does not intentionally overlap** Radio 1/2.
   - Want full control of rates / hop intervals / exact freqs? Define `rtl_config` (manual mode) and you are responsible for the complete radio configuration.
 
 - **Zero-Config Discovery:** Sensors appear automatically in Home Assistant (via MQTT Discovery) with correct units, icons, and friendly names.
