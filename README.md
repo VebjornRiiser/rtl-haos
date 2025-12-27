@@ -139,7 +139,7 @@ _The signal boost between 8:00 AM and 5:00 PM is due to the AcuRite 5-in-1 inter
 
 ## ⚙️ Configuration
 
-Full configuration reference: **`docs/CONFIG.md`**.
+Full configuration reference: **[docs/CONFIG.md](docs/CONFIG.md)**.
 
 > **Note:** If you're using the **Home Assistant Add-on**, skip this section and go directly to [Installation](#-installation). Add-on configuration is done through the Home Assistant UI.
 
