@@ -1,6 +1,35 @@
 # Multi-Radio Setup
 
 This page is duplicated from the README for easier linking.
+
+## Plug-and-go Auto Multi-Radio
+
+If you leave `rtl_config` empty (`rtl_config: []`), RTL-HAOS can automatically start multiple `rtl_433` instances when it detects multiple RTL-SDR dongles.
+
+Auto mode is designed to be **zero-clutter**: you install the add-on, plug in 1–3 dongles, and it starts the right number of radios automatically.
+
+The only auto-mode knob exposed in the add-on UI is the **Region / Band Plan** dropdown: `rtl_auto_band_plan` (default: `auto`).
+  - EU/UK/EEA/CH -> 868 MHz
+  - US/CA/AU/NZ and most others -> 915 MHz
+  - If HA country is unknown -> hops 868/915
+
+Band plan options:
+- `auto`: use Home Assistant's country setting when available (recommended)
+- `us`: force 915 MHz for Radio #2
+- `eu`: force 868 MHz for Radio #2
+- `world`: hop 868 + 915 on Radio #2 (best when country is unknown)
+
+### Optional 3rd radio: regional hopper
+
+If you have 3 dongles, **Radio #3 becomes a hopper** that scans “interesting” nearby bands for your region.
+
+Auto hopper defaults:
+- EU/UK/EEA/CH: hops 169.4, 868.95, 869.525, 915
+- Else: hops 315, 345, 390, 868
+
+The hopper will not intentionally overlap bands already covered by Radio #1/#2.
+
+> Want full control of rates / hop intervals / exact freqs? Switch to **manual mode** by defining `rtl_config` (see below). In manual mode, you are responsible for the complete radio configuration.
 ## Radio status entity naming
 
 RTL-HAOS publishes a host-level **Radio Status** entity per radio (e.g. `radio_status_101`).

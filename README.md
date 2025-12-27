@@ -16,6 +16,17 @@ See rtl_433 documentation for supported devices: https://github.com/merbanan/rtl
 
 ## ✨ Features
 
+
+- **Auto Multi-Radio (plug-and-go):** If you leave `rtl_config` empty and the add-on detects multiple RTL-SDR dongles, it will automatically start **1–3** `rtl_433` instances (based on how many dongles you plug in).
+  - **Zero-clutter UI:** the only auto-mode knob in the add-on UI is the **Region / Band Plan** dropdown: `rtl_auto_band_plan: auto|us|eu|world`.
+  - **Radio #1:** default 433.92 MHz (typical sensors)
+  - **Radio #2:** region-aware high-band:
+    - **EU/UK/EEA/CH:** 868 MHz
+    - **US/CA/AU/NZ (and most others):** 915 MHz
+    - If Home Assistant country is unknown, it will hop 868/915 on Radio #2
+  - **Radio #3 (if present):** a regional hopper for “interesting” bands that **does not intentionally overlap** Radio #1/#2.
+  - Want full control of rates / hop intervals / exact freqs? Define `rtl_config` (manual mode) and you are responsible for the complete radio configuration.
+
 - **Zero-Config Discovery:** Sensors appear automatically in Home Assistant (via MQTT Discovery) with correct units, icons, and friendly names.
 - **Signal Diagnostics:** Reports **RSSI, SNR, and Noise Floor** for every device, making it easy to identify weak signals, plot coverage ranges, or hunt down interference sources.
 - **Smart System Monitor:**
@@ -173,6 +184,17 @@ MQTT_PASS=password
 
 **Multi-Radio Setup:**
 
+
+If `RTL_CONFIG` is unset/empty, RTL-HAOS will run in **Auto Multi-Radio** mode (start 1–3 radios depending on detected dongles).
+
+Optional standalone knob for the secondary band (Radio #2):
+
+```bash
+RTL_AUTO_BAND_PLAN=auto   # auto|us|eu|world
+# Optional override used by plan=auto
+HA_COUNTRY=US
+```
+
 > **Note**: If you only have **one** RTL-SDR, no other radio configuration is needed.
 > The bridge will automatically try to read the dongle's serial with `rtl_eeprom` and use that.
 > If it cannot detect a serial, it falls back to device index `id = "0"`.
@@ -181,7 +203,7 @@ For multiple RTL-SDR dongles on different frequencies:
 
 ```bash
 # Multiple radios 
-RTL_CONFIG='[{"name": "Weather Radio", "id": "101", "freq": "433.92M", "rate": "250k"}, {"name": "Utility Meter", "id": "102", "freq": "915M", "rate": "250k"}]'
+RTL_CONFIG='[{"name": "Weather Radio", "id": "101", "freq": "433.92M", "rate": "250k"}, {"name": "Utility Meter", "id": "102", "freq": "915M", "rate": "1024k"}]'
 ```
 
 **Device Filtering:**
