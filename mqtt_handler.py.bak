@@ -58,39 +58,6 @@ from utils import clean_mac, get_system_mac
 from field_meta import FIELD_META
 from rtl_manager import trigger_radio_restart
 
-# --- Utility meter commodity inference (Itron ERT / rtlamr conventions) ---
-# We infer commodity from fields like 'ert_type' (ERT-SCM) and 'MeterType' (SCMplus/IDM).
-ERT_TYPE_COMMODITY = {
-    "electric": {4, 5, 7, 8},
-    "gas": {0, 1, 2, 9, 12},
-    "water": {3, 11, 13},
-}
-
-def infer_commodity_from_ert_type(value):
-    """Return 'electric'|'gas'|'water' for known ERT type values, else None."""
-    try:
-        t = int(value)
-    except (TypeError, ValueError):
-        return None
-    for commodity, typeset in ERT_TYPE_COMMODITY.items():
-        if t in typeset:
-            return commodity
-    return None
-
-def infer_commodity_from_meter_type(value):
-    """Return commodity from textual MeterType fields (e.g., 'Gas', 'Water', 'Electric')."""
-    if not isinstance(value, str):
-        return None
-    v = value.strip().lower()
-    if v in {"electric", "electricity", "energy", "power"}:
-        return "electric"
-    if v in {"gas", "natural gas"}:
-        return "gas"
-    if v in {"water"}:
-        return "water"
-    return None
-
-
 
 def _parse_boolish(value):
     """Best-effort conversion to bool.
@@ -138,32 +105,12 @@ class HomeNodeMQTT:
         
         self.discovery_lock = threading.Lock()
 
-        # --- Utility meter inference cache (per-device) ---
-        # Used to correctly classify generic fields like 'consumption_data' for ERT-SCM endpoints.
-        self._commodity_by_device = {}  # clean_id -> 'electric'|'gas'|'water'
-
-
         # --- Nuke Logic Variables ---
         self.nuke_counter = 0
         self.nuke_last_press = 0
         self.NUKE_THRESHOLD = 5       
         self.NUKE_TIMEOUT = 5.0       
         self.is_nuking = False        
-
-    def _utility_meta_override(self, clean_id, field):
-        """Return (unit, device_class, icon, friendly_name) for utility meter readings, or None."""
-        commodity = self._commodity_by_device.get(clean_id)
-        if not commodity:
-            return None
-
-        if commodity == "electric":
-            return ("kWh", "energy", "mdi:flash", "Energy Reading")
-        if commodity == "gas":
-            return ("ft³", "gas", "mdi:fire", "Gas Usage")
-        if commodity == "water":
-            return ("ft³", "water", "mdi:water-pump", "Water Reading")
-        return None
-
 
     def _on_connect(self, c, u, f, rc, p=None):
         if rc == 0:
@@ -336,7 +283,6 @@ class HomeNodeMQTT:
         friendly_name_override=None,
         domain="sensor",
         extra_payload=None,
-        meta_override=None,
     ):
         unique_id = f"{unique_id}{config.ID_SUFFIX}"
 
@@ -351,8 +297,6 @@ class HomeNodeMQTT:
                 unit, device_class, icon, default_fname = base_meta
             else:
                 meta = FIELD_META.get(sensor_name, default_meta)
-                if meta_override is not None:
-                    meta = meta_override
                 try:
                     unit, device_class, icon, default_fname = meta
                 except ValueError:
@@ -370,10 +314,6 @@ class HomeNodeMQTT:
             if sensor_name in getattr(config, 'MAIN_SENSORS', []):
                 entity_cat = None 
             if sensor_name.startswith("radio_status"):
-                entity_cat = None
-
-            # Utility meters should not be categorized as diagnostic.
-            if device_class in ["gas", "energy", "water"]:
                 entity_cat = None
 
             device_registry = {
@@ -451,21 +391,6 @@ class HomeNodeMQTT:
         out_value = value
 
 
-        # Cache utility commodity hints (ERT-SCM uses 'ert_type', others may use 'MeterType').
-        if field == "ert_type":
-            commodity = infer_commodity_from_ert_type(value)
-            if commodity:
-                self._commodity_by_device[clean_id] = commodity
-
-        if field in {"MeterType", "meter_type", "metertype"}:
-            commodity = infer_commodity_from_meter_type(value)
-            if commodity:
-                self._commodity_by_device[clean_id] = commodity
-
-        meta_override = None
-        if field in {"Consumption", "consumption", "consumption_data", "meter_reading"}:
-            meta_override = self._utility_meta_override(clean_id, field)
-
         # battery_ok: 1/True => battery OK, 0/False => battery LOW
         # Home Assistant's binary_sensor device_class "battery" expects:
         #   ON  => low
@@ -538,7 +463,6 @@ class HomeNodeMQTT:
             friendly_name_override=friendly_name,
             domain=domain,
             extra_payload=extra_payload,
-            meta_override=meta_override,
         )
 
         unique_id_v2 = f"{unique_id}{config.ID_SUFFIX}"
