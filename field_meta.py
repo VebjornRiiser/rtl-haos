@@ -98,13 +98,6 @@ FIELD_META = {
     "consumption_data":     ("ft³", "gas", "mdi:fire", "Gas Usage"),
     "meter_reading":        ("ft³", "water", "mdi:water-pump", "Water Reading"),
 
-    # Common rtl_433 water meter fields
-    # - Badger ORION emits volume_gal
-    # - Many wireless meter protocols expose volume in common units
-    "volume_gal":           ("gal", "water", "mdi:water-pump", "Water Usage"),
-    "volume_ft3":           ("ft³", "water", "mdi:water-pump", "Water Usage"),
-    "volume_m3":            ("m³", "water", "mdi:water-pump", "Water Usage"),
-
     # --- Battery ---
     # Many decoders emit battery_ok where 1/True means battery is OK and 0/False
     # means battery is LOW. We publish this as a binary sensor (device_class: battery)
