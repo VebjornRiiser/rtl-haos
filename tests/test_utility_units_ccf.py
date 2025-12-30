@@ -80,4 +80,4 @@ def test_scmplus_ccf_updates_after_metertype(monkeypatch):
 
     # State should be re-published converted to CCF (ft³ / 100)
     st2 = _last_state_payload(c, "deadbeef", "Consumption")
-    assert st2 == "21.75"
+    assert st2 == "21.7504"

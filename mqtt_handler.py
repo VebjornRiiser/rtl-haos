@@ -216,7 +216,7 @@ class HomeNodeMQTT:
         # Gas: ft³ (default) or CCF (hundred cubic feet)
         if str(getattr(config, "GAS_VOLUME_UNIT", "ft3")).strip().lower() == "ccf":
             try:
-                return round(float(value) / 100.0, 2)
+                return round(float(value) / 100.0, 4)
             except (TypeError, ValueError):
                 return value
         return value
