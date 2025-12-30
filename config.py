@@ -182,6 +182,18 @@ class Settings(BaseSettings):
     debug_raw_json: bool = Field(default=False)
     rtl_throttle_interval: int = Field(default=30)
 
+    # --- Utility meter display units ---
+    # rtl_433 / rtlamr-style meters often report gas volume in cubic feet.
+    # Some utilities (and some physical registers) show hundred cubic feet (CCF).
+    #
+    # Supported values:
+    #   - ft3 : cubic feet (default)
+    #   - ccf : hundred cubic feet
+    gas_volume_unit: str = Field(
+        default="ft3",
+        description="Display unit for gas volume utility meters: ft3 (cubic feet) or ccf (hundred cubic feet).",
+    )
+
     # --- Battery alert behavior (battery_ok -> Battery Low binary_sensor) ---
     # 0 disables latching and clears low immediately on the next OK.
     battery_ok_clear_after: int = Field(
@@ -241,6 +253,9 @@ RTL_THROTTLE_INTERVAL = settings.rtl_throttle_interval
 RTL_SHOW_TIMESTAMPS = settings.rtl_show_timestamps
 
 VERBOSE_TRANSMISSIONS = settings.verbose_transmissions
+
+# Utility meters
+GAS_VOLUME_UNIT = settings.gas_volume_unit
 
 # Battery behavior
 BATTERY_OK_CLEAR_AFTER = settings.battery_ok_clear_after

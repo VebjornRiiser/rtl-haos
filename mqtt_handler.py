@@ -91,6 +91,31 @@ def infer_commodity_from_meter_type(value):
     return None
 
 
+def infer_commodity_from_type_field(value):
+    """Return commodity from common 'type' fields.
+
+    rtl_433 decoders are inconsistent across meter families:
+      - Some publish a textual 'type' like 'electric'/'gas'/'water'
+      - Some publish a numeric ERT type under 'type'
+
+    This helper supports both.
+    """
+    # Numeric ERT-style type
+    if isinstance(value, (int, float)):
+        return infer_commodity_from_ert_type(int(value))
+
+    if not isinstance(value, str):
+        return None
+    v = value.strip().lower()
+    if v in {"electric", "electricity", "energy", "power"}:
+        return "electric"
+    if v in {"gas", "natural gas"}:
+        return "gas"
+    if v in {"water"}:
+        return "water"
+    return None
+
+
 
 def _parse_boolish(value):
     """Best-effort conversion to bool.
@@ -142,6 +167,16 @@ class HomeNodeMQTT:
         # Used to correctly classify generic fields like 'consumption_data' for ERT-SCM endpoints.
         self._commodity_by_device = {}  # clean_id -> 'electric'|'gas'|'water'
 
+        # Remember last raw utility readings so we can re-publish state/config
+        # once we learn commodity (or unit preferences) from later fields.
+        # Key: (clean_id, field) -> raw_value
+        self._utility_last_raw = {}
+
+        # Cache the last discovery signature we published per entity so we can
+        # safely update HA discovery when metadata changes (e.g., gas -> energy).
+        # Key: unique_id_with_suffix -> signature tuple
+        self._discovery_sig = {}
+
 
         # --- Nuke Logic Variables ---
         self.nuke_counter = 0
@@ -159,10 +194,46 @@ class HomeNodeMQTT:
         if commodity == "electric":
             return ("kWh", "energy", "mdi:flash", "Energy Reading")
         if commodity == "gas":
+            # Display units are configurable. Default is ft³.
+            if str(getattr(config, "GAS_VOLUME_UNIT", "ft3")).strip().lower() == "ccf":
+                return ("CCF", "gas", "mdi:fire", "Gas Usage")
             return ("ft³", "gas", "mdi:fire", "Gas Usage")
         if commodity == "water":
             return ("ft³", "water", "mdi:water-pump", "Water Reading")
         return None
+
+
+    def _apply_utility_value_conversion(self, clean_id: str, field: str, value):
+        """Apply display-unit conversions for utility meter readings.
+
+        Note: model-specific normalization (e.g., ÷100) happens earlier.
+        This step is purely about user-facing *display units*.
+        """
+        commodity = self._commodity_by_device.get(clean_id)
+        if commodity != "gas":
+            return value
+
+        # Gas: ft³ (default) or CCF (hundred cubic feet)
+        if str(getattr(config, "GAS_VOLUME_UNIT", "ft3")).strip().lower() == "ccf":
+            try:
+                return round(float(value) / 100.0, 2)
+            except (TypeError, ValueError):
+                return value
+        return value
+
+
+    def _refresh_utility_entities_for_device(self, clean_id: str, device_name: str, device_model: str) -> None:
+        """Re-publish discovery + state for cached utility readings for this device.
+
+        This is used when we learn commodity metadata after the reading was already
+        published (e.g., MeterType arrives after Consumption). Without this, HA would
+        keep the first-discovered device_class/unit.
+        """
+        for (cid, field), raw_value in list(self._utility_last_raw.items()):
+            if cid != clean_id:
+                continue
+            # Use is_rtl=False so we only publish if it actually changes.
+            self.send_sensor(clean_id, field, raw_value, device_name, device_model, is_rtl=False)
 
 
     def _on_connect(self, c, u, f, rc, p=None):
@@ -305,6 +376,9 @@ class HomeNodeMQTT:
             self.discovery_published.clear()
             self.last_sent_values.clear()
             self.tracked_devices.clear()
+            # Also clear discovery signatures so retained config is re-published
+            # even when the metadata would otherwise look "unchanged".
+            self._discovery_sig.clear()
 
         print("[NUKE] Scan Complete. All identified entities removed.")
         self.client.publish(self.TOPIC_AVAILABILITY, "online", retain=True)
@@ -341,8 +415,6 @@ class HomeNodeMQTT:
         unique_id = f"{unique_id}{config.ID_SUFFIX}"
 
         with self.discovery_lock:
-            if unique_id in self.discovery_published:
-                return False
 
             default_meta = (None, "none", "mdi:eye", sensor_name.replace("_", " ").title())
             
@@ -427,9 +499,27 @@ class HomeNodeMQTT:
             
             payload["availability_topic"] = self.TOPIC_AVAILABILITY
 
+            # Signature for safe updates: if this changes, we re-publish the retained config.
+            sig = (
+                domain,
+                payload.get("device_class"),
+                payload.get("unit_of_measurement"),
+                payload.get("icon"),
+                payload.get("name"),
+                payload.get("entity_category"),
+                payload.get("state_class"),
+            )
+
+            prev_sig = self._discovery_sig.get(unique_id)
+            if prev_sig == sig:
+                # Already published with identical metadata.
+                self.discovery_published.add(unique_id)
+                return False
+
             config_topic = f"homeassistant/{domain}/{unique_id}/config"
             self.client.publish(config_topic, json.dumps(payload), retain=True)
             self.discovery_published.add(unique_id)
+            self._discovery_sig[unique_id] = sig
             return True
 
     def send_sensor(self, sensor_id, field, value, device_name, device_model, is_rtl=True, friendly_name=None):
@@ -450,6 +540,10 @@ class HomeNodeMQTT:
         extra_payload = None
         out_value = value
 
+        # Remember raw utility readings so we can re-publish once commodity metadata is known.
+        if field in {"Consumption", "consumption", "consumption_data", "meter_reading"}:
+            self._utility_last_raw[(clean_id, field)] = value
+
         # Normalize raw meter readings: some models report hundredths.
         # Example: 2735618 => 27356.18 (divide by 100)
         if field in {"Consumption", "consumption", "consumption_data"}:
@@ -462,20 +556,34 @@ class HomeNodeMQTT:
 
 
 
-        # Cache utility commodity hints (ERT-SCM uses 'ert_type', others may use 'MeterType').
-        if field == "ert_type":
-            commodity = infer_commodity_from_ert_type(value)
-            if commodity:
-                self._commodity_by_device[clean_id] = commodity
+        # Cache utility commodity hints.
+        # ERT-SCM often uses a numeric ERT type, while SCMplus/IDM often provide MeterType.
+        prev_commodity = self._commodity_by_device.get(clean_id)
 
-        if field in {"MeterType", "meter_type", "metertype"}:
-            commodity = infer_commodity_from_meter_type(value)
-            if commodity:
-                self._commodity_by_device[clean_id] = commodity
+        commodity_update = None
+        if field in {"ert_type", "ertType", "ERTType"}:
+            commodity_update = infer_commodity_from_ert_type(value)
+
+        if commodity_update is None and field in {"MeterType", "meter_type", "metertype"}:
+            commodity_update = infer_commodity_from_meter_type(value)
+
+        # Some decoders publish commodity hints in a generic 'type' field.
+        # Only treat it as a utility hint when it looks like a commodity.
+        if commodity_update is None and field in {"type", "Type"}:
+            commodity_update = infer_commodity_from_type_field(value)
+
+        if commodity_update and commodity_update != prev_commodity:
+            self._commodity_by_device[clean_id] = commodity_update
+            # Now that we know commodity, update any utility entities we already published.
+            self._refresh_utility_entities_for_device(clean_id, device_name, device_model)
 
         meta_override = None
         if field in {"Consumption", "consumption", "consumption_data", "meter_reading"}:
             meta_override = self._utility_meta_override(clean_id, field)
+
+        # Apply display-unit conversions AFTER normalization.
+        if field in {"Consumption", "consumption", "consumption_data", "meter_reading"}:
+            out_value = self._apply_utility_value_conversion(clean_id, field, out_value)
 
         # battery_ok: 1/True => battery OK, 0/False => battery LOW
         # Home Assistant's binary_sensor device_class "battery" expects:

@@ -1,4 +1,5 @@
 # Changelog
+## v1.1.14
 
 ## v1.1.13
 - **FIX:** Home Assistant discovery for **ERT-SCM electric meters** so they no longer appear as gas meters; they now publish as **Energy (kWh)**.
