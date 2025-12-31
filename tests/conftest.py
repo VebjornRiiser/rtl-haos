@@ -4,8 +4,17 @@ import sys
 import types
 import importlib.machinery
 import unittest.mock as um
+import warnings
 
 import pytest
+
+# Some container/CI environments ship a vendored psutil (e.g. via ddtrace) that
+# emits noisy RuntimeWarnings on import due to missing /proc/vmstat.
+warnings.filterwarnings(
+    "ignore",
+    message=r".*swap memory stats couldn't be determined.*",
+    category=RuntimeWarning,
+)
 
 # Ensure we can import project modules from repo root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
