@@ -34,6 +34,10 @@ rtl_expire_after: 600 # Seconds before sensor marked unavailable
 rtl_throttle_interval: 30 # Seconds to buffer/average data (0 = realtime)
 debug_raw_json: false # Print raw rtl_433 JSON for debugging
 
+# Utility Meter Units
+# Most gas meters use cubic feet (ft3). Change to 'ccf' if your utility/meter uses hundreds of cubic feet.
+gas_volume_unit: "ft3"
+
 # Battery alert behavior (battery_ok -> Battery Low binary_sensor)
 # 0 clears immediately on next OK
 battery_ok_clear_after: 300

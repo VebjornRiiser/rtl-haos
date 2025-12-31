@@ -1,5 +1,8 @@
 # Changelog
 ## v1.1.14
+- **NEW:** Added `gas_volume_unit` configuration to support **CCF (100 cubic feet)** units for utility meters. Defaults to `ft3`.
+- **FIX:** Auto-rename duplicate RTL-SDR USB serial numbers (e.g., `00000001` -> `00000001-1`) to prevent hardware map collisions and missing radios.
+- **FIX:** Improved throttling logs to display the frequency of the radio receiving the data.
 
 ## v1.1.13
 - **FIX:** Home Assistant discovery for **ERT-SCM electric meters** so they no longer appear as gas meters; they now publish as **Energy (kWh)**.

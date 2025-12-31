@@ -4,6 +4,7 @@ FILE: main.py
 DESCRIPTION:
   The main executable script.
   - UPDATED: Added explicit Warnings when NO hardware is detected on the USB bus.
+  - UPDATED: Auto-renames duplicate USB serials to prevent hardware map collisions.
 """
 import os
 import sys
@@ -178,16 +179,29 @@ def main():
     print("[STARTUP] Scanning USB bus for RTL-SDR devices...")
     detected_devices = discover_rtl_devices()
     
-    # --- Check for Physical Duplicates (Hardware) ---
+    # If multiple dongles share the same serial (e.g., '00000001'), we append the index
+    # (e.g., '00000001-1') so they don't overwrite each other in the hardware map.
     _seen_ids = {}
     for d in detected_devices:
         original_id = d.get('id')
         if original_id in _seen_ids:
-            # Duplicate found! Append index to make it unique
             new_id = f"{original_id}-{d['index']}"
             d['id'] = new_id
             print(f"[STARTUP] Renamed duplicate Serial '{original_id}' to '{new_id}'")
         _seen_ids[d.get('id')] = True
+
+
+    # --- Check for Physical Duplicates (Hardware) ---
+    serial_counts = {}
+    if detected_devices:
+        for d in detected_devices:
+            sid = str(d.get('id', ''))
+            serial_counts[sid] = serial_counts.get(sid, 0) + 1
+            if 'id' in d and 'index' in d: pass 
+
+        for sid, count in serial_counts.items():
+            if count > 1:
+                print(f"[STARTUP] WARNING: [Hardware] Multiple SDRs detected with same Serial '{sid}'. IDs must be unique for precise mapping. Use rtl_eeprom to fix.")
 
     serial_to_index = {}
     if detected_devices:
