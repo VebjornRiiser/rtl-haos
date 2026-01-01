@@ -198,6 +198,9 @@ class HomeNodeMQTT:
         if commodity == "electric":
             return ("kWh", "energy", "mdi:flash", "Energy Reading")
         if commodity == "gas":
+            gas_unit = str(getattr(config.settings, "gas_unit", "ft3") or "ft3").strip().lower()
+            if gas_unit in {"ccf", "centum_cubic_feet"}:
+                return ("CCF", "gas", "mdi:fire", "Gas Usage")
             return ("ft³", "gas", "mdi:fire", "Gas Usage")
         if commodity == "water":
             # Neptune R900 (protocol 228) typically reports gallons (often in tenths, normalized upstream).
@@ -206,6 +209,47 @@ class HomeNodeMQTT:
                 return ("gal", "water", "mdi:water-pump", "Water Usage")
             return ("ft³", "water", "mdi:water-pump", "Water Reading")
         return None
+    def _utility_normalize_value(self, clean_id: str, field: str, value, device_model: str):
+        """Normalize utility readings *after* commodity is known.
+
+        Goals:
+          - Electric meters: ERT-SCM/SCMplus typically report hundredths of kWh.
+          - Gas meters: ERT-SCM typically reports CCF (hundred cubic feet). Optionally publish ft³.
+        """
+        commodity = self._commodity_by_device.get(clean_id)
+        if not commodity:
+            return value
+
+        # Only normalize the main utility total fields.
+        if field not in {"Consumption", "consumption", "consumption_data", "meter_reading"}:
+            return value
+
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            return value
+
+        model = str(device_model or self._device_model_by_id.get(clean_id, "") or "").strip().lower()
+
+        if commodity == "electric":
+            # Most ERT-SCM/SCMplus electric meters report hundredths of kWh.
+            if model.startswith("ert-scm") or model.startswith("scmplus"):
+                return round(v * 0.01, 2)
+            return v
+
+        if commodity == "gas":
+            # rtlamr/rtl_433 commonly reports the raw counter in ft³ (which is also 0.01 CCF).
+            # If you prefer billing units (CCF), we publish CCF by dividing by 100.
+            gas_unit = str(getattr(config.settings, "gas_unit", "ft3") or "ft3").strip().lower()
+            if gas_unit in {"ccf", "centum_cubic_feet"}:
+                return round(v * 0.01, 2)
+            # Default: publish ft³
+            return v
+
+        # Water (and others): do not normalize here.
+        return v
+
+
     def _refresh_utility_entities_for_device(self, clean_id: str, device_name: str, device_model: str) -> None:
         """Re-publish discovery + state for cached utility readings for this device.
 
@@ -532,11 +576,12 @@ class HomeNodeMQTT:
         if field in {"Consumption", "consumption", "consumption_data", "meter_reading"}:
             self._utility_last_raw[(clean_id, field)] = value
 
-        # --- CLEAN: Removed legacy normalization logic ---
-        # We now send the RAW meter count (ft3) to Home Assistant.
-        # This fixes the data integrity issue moving forward, even though it causes
-        # a one-time jump in historical graphs for users who were on v1.1.13.
 
+        # Commodity-aware normalization for utility meters:
+        #  - Electric (ERT-SCM/SCMplus): hundredths of kWh -> kWh
+        #  - Gas (ERT-SCM): CCF -> optionally publish ft³ (x100)
+        # NOTE: If commodity is unknown, we publish the raw value first and
+        #       automatically re-publish once commodity metadata arrives.
         prev_commodity = self._commodity_by_device.get(clean_id)
 
         commodity_update = None
@@ -559,6 +604,11 @@ class HomeNodeMQTT:
         meta_override = None
         if field in {"Consumption", "consumption", "consumption_data", "meter_reading"}:
             meta_override = self._utility_meta_override(clean_id, field)
+
+
+        # Apply commodity-aware normalization for utility meter readings.
+        if field in {"Consumption", "consumption", "consumption_data", "meter_reading"}:
+            out_value = self._utility_normalize_value(clean_id, field, out_value, device_model)
 
         # battery_ok: 1/True => battery OK, 0/False => battery LOW
         # Home Assistant's binary_sensor device_class "battery" expects:

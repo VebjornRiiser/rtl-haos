@@ -160,6 +160,10 @@ Full configuration reference: **[docs/CONFIG.md](docs/CONFIG.md)**.
 
 This section applies to **Docker** and **Native** installation methods only.
 
+### Upgrade Notes
+
+Upgrading from v1.1.13? See CHANGELOG.md → v1.1.14 → “Migration from v1.1.13” (gas totals may change magnitude; optional gas_unit: ccf).
+
 ### Setup
 
 ```bash

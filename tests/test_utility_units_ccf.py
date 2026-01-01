@@ -53,7 +53,7 @@ def test_consumption_data_updates_to_kwh_after_ert_type(monkeypatch):
 
     # Discovery metadata changed -> we should also re-publish the cached state.
     st2 = last_state_payload(c, "deadbeef", "consumption_data")
-    assert_float_str(st2, 217504.0)
+    assert_float_str(st2, 2175.04)
 
     state_count_2 = _count_publishes(c, state_topic)
     assert state_count_2 == state_count_1 + 1

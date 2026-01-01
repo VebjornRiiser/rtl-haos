@@ -1,17 +1,33 @@
 # Changelog
 
 ## v1.1.14
-### ⚠️ BREAKING CHANGE: Gas Meter Units
-- **Gas Meter Normalization Removed:** In previous versions, the bridge attempted to auto-scale gas meter readings (dividing by 100) to match the visual "CCF" dials on many physical meters, despite the radio protocol reporting in Cubic Feet.
-    - **What Changed:** We now report the **Raw Cubic Feet (ft³)** value exactly as received from the radio.
-    - **The Impact:** If you have an `ERT-SCM` or `SCMplus` meter, your reading will likely **jump by 100x** (e.g., `2,223` → `222,300`). This is normal and represents the correct raw value.
-    - **How to Fix:** If you want to see **CCF** (Hundred Cubic Feet) in your dashboard, do not rely on the bridge to do the math. Instead, open the Entity Settings in Home Assistant and change the **Unit of Measurement** to `CCF` (or `hundred ft³`). Home Assistant will then perform the conversion natively.
+### Utility meters: correct gas vs electric units
+- **FIX:** Utility meters now publish **correct units and scaling** based on the detected commodity:
+  - **Electric (ERT-SCM / SCMplus):** publishes **Energy (kWh)** and converts from the protocol’s hundredths (÷100).
+  - **Gas (ERT-SCM / SCMplus):** publishes **Gas volume (ft³)** by default (raw counter, no scaling).
+- **NEW:** Add-on option `gas_unit` to publish gas in your preferred unit:
+  - `ft3` (default): publish the raw counter as **ft³**
+  - `ccf`: publish **CCF** (billing units) by converting from ft³ (÷100)
 
-- **FIX:** Auto-rename duplicate RTL-SDR USB serial numbers (e.g., `00000001` -> `00000001-1`) to prevent hardware map collisions and missing radios.
+### Other fixes
+  - **FIX:** Auto-rename duplicate RTL-SDR USB serial numbers (e.g. `00000001` → `00000001-1`) to prevent hardware map collisions and missing radios.
+
+  Migration from v1.1.13
+
+  Gas meters (ERT-SCM/SCMplus): v1.1.14 publishes raw ft³ totals by default. If you were previously seeing “CCF-like” numbers in v1.1.13, your gas sensor value may appear to jump by ~100× after upgrading. This is expected.
+
+  If you prefer CCF, set gas_unit: ccf (or use a template sensor dividing by 100).
+
+  Electric meters (ERT-SCM/SCMplus): v1.1.14 continues to publish scaled kWh (hundredths → kWh). Electric values should remain consistent.
+
+  Home Assistant discovery refresh: if HA doesn’t immediately reflect updated units/device_class, use the add-on “NUKE” cleanup (if provided) or clear retained discovery topics, then restart.
+
+  Multiple RTL-SDR dongles with duplicate serials: duplicates may be renamed with a suffix (SERIAL-1, SERIAL-2). If you use manual rtl_config, update IDs to match startup logs.
 
 ## v1.1.13
 - **FIX:** Home Assistant discovery for **ERT-SCM electric meters** so they no longer appear as gas meters; they now publish as **Energy (kWh)**.
 - **FIX:** **consumption readings being 100× too large** for **ERT-SCM** and **SCMplus** meters by normalizing the reported consumption value (÷100) so the sensor matches the physical meter display.
+
 
 ## v1.1.12
 - **NEW:** Auto multi-radio: starts multiple radios when multiple RTL-SDR dongles are present.

@@ -178,6 +178,11 @@ class Settings(BaseSettings):
     # --- Publishing / processing ---
     rtl_expire_after: int = Field(default=600)
     force_new_ids: bool = Field(default=False)
+
+    # --- Utility meters ---
+    # Preferred unit for *gas* utility readings published by this add-on.
+    # Supported: 'ft3' (cubic feet) or 'ccf' (hundred cubic feet).
+    gas_unit: str = Field(default="ft3")
     debug_raw_json: bool = Field(default=False)
     rtl_throttle_interval: int = Field(default=30)
 
