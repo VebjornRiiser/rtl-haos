@@ -84,3 +84,43 @@ def test_meter_type_does_not_require_gas_volume_unit(monkeypatch):
 
     st = last_state_payload(c, "deadbeef", "Consumption")
     assert_float_str(st, 12345.0)
+
+
+def test_gas_unit_ccf_converts_and_refreshes_after_meter_type(monkeypatch):
+    """If gas_unit=ccf, gas totals should publish as CCF (ft³ ÷ 100).
+
+    This also validates the "late commodity" refresh path: if the main total
+    arrives before MeterType, we should re-publish discovery + state once the
+    commodity becomes known, applying the user's gas_unit preference.
+    """
+    _patch_common(monkeypatch)
+    monkeypatch.setattr(config, "MAIN_SENSORS", ["Consumption"], raising=False)
+    monkeypatch.setattr(config.settings, "gas_unit", "ccf", raising=False)
+
+    h = mqtt_handler.HomeNodeMQTT(version="vtest")
+    c = h.client
+
+    # 1) Total arrives first (commodity unknown) -> default gas ft³ metadata.
+    h.send_sensor("device_x", "Consumption", 12345, "SCMplus deadbeef", "SCMplus")
+    cfg1 = last_discovery_payload(c, domain="sensor", unique_id_with_suffix="deadbeef_Consumption_T")
+    assert cfg1.get("device_class") == "gas"
+    assert cfg1.get("unit_of_measurement") == "ft³"
+    st1 = last_state_payload(c, "deadbeef", "Consumption")
+    assert_float_str(st1, 12345.0)
+
+    state_topic = "home/rtl_devices/deadbeef/Consumption"
+    state_count_1 = _count_publishes(c, state_topic)
+
+    # 2) MeterType arrives later -> commodity becomes gas; refresh should update
+    #    discovery to CCF and re-publish the cached total scaled by ÷100.
+    h.send_sensor("device_x", "MeterType", "Gas", "SCMplus deadbeef", "SCMplus")
+
+    cfg2 = last_discovery_payload(c, domain="sensor", unique_id_with_suffix="deadbeef_Consumption_T")
+    assert cfg2.get("device_class") == "gas"
+    assert cfg2.get("unit_of_measurement") == "CCF"
+
+    st2 = last_state_payload(c, "deadbeef", "Consumption")
+    assert_float_str(st2, 123.45)
+
+    state_count_2 = _count_publishes(c, state_topic)
+    assert state_count_2 == state_count_1 + 1
