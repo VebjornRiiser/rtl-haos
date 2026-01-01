@@ -1,6 +1,7 @@
 # Changelog
 
 ## v1.1.14
+
 ### Utility meters: correct gas vs electric units
 - **FIX:** Utility meters now publish **correct units and scaling** based on the detected commodity:
   - **Electric (ERT-SCM / SCMplus):** publishes **Energy (kWh)** and converts from the protocol’s hundredths (÷100).
@@ -10,19 +11,18 @@
   - `ccf`: publish **CCF** (billing units) by converting from ft³ (÷100)
 
 ### Other fixes
-  - **FIX:** Auto-rename duplicate RTL-SDR USB serial numbers (e.g. `00000001` → `00000001-1`) to prevent hardware map collisions and missing radios.
+- **FIX:** Auto-rename duplicate RTL-SDR USB serial numbers (e.g. `00000001` → `00000001-1`) to prevent hardware map collisions and missing radios.
+- **FIX:** Improve resilience when spawning RTL tooling (`rtl_433`, `rtl_eeprom`) by tolerating non-UTF8 output (prevents rare startup/runtime decode crashes).
+- **FIX:** Improve Home Assistant MQTT discovery refresh when meter metadata arrives late (less need to “nuke” for unit/device_class corrections).
+- **NEW:** Add metadata support for common volume fields (e.g., `volume_gal`, `volume_ft3`, `volume_m3`) so they publish with appropriate units/icons.
 
-  Migration from v1.1.13
+### Migration from v1.1.13
+- **Gas meters (ERT-SCM / SCMplus):** v1.1.14 publishes **raw ft³ totals** by default. If you were previously seeing “CCF-like” numbers in v1.1.13, your gas sensor value may appear to jump by ~**100×** after upgrading. This is expected.
+  - If you prefer **CCF**, set `gas_unit: ccf` (or use a template sensor dividing by 100).
+- **Electric meters (ERT-SCM / SCMplus):** v1.1.14 continues to publish **scaled kWh** (hundredths → kWh). Electric values should remain consistent.
+- **Home Assistant discovery refresh:** if HA doesn’t immediately reflect updated unit/device_class, use the add-on “NUKE” cleanup (if provided) or clear retained discovery topics, then restart.
+- **Multiple RTL-SDR dongles with duplicate serials:** duplicates may be renamed with a suffix (`SERIAL-1`, `SERIAL-2`). If you use manual `rtl_config`, update IDs to match startup logs.
 
-  Gas meters (ERT-SCM/SCMplus): v1.1.14 publishes raw ft³ totals by default. If you were previously seeing “CCF-like” numbers in v1.1.13, your gas sensor value may appear to jump by ~100× after upgrading. This is expected.
-
-  If you prefer CCF, set gas_unit: ccf (or use a template sensor dividing by 100).
-
-  Electric meters (ERT-SCM/SCMplus): v1.1.14 continues to publish scaled kWh (hundredths → kWh). Electric values should remain consistent.
-
-  Home Assistant discovery refresh: if HA doesn’t immediately reflect updated units/device_class, use the add-on “NUKE” cleanup (if provided) or clear retained discovery topics, then restart.
-
-  Multiple RTL-SDR dongles with duplicate serials: duplicates may be renamed with a suffix (SERIAL-1, SERIAL-2). If you use manual rtl_config, update IDs to match startup logs.
 
 ## v1.1.13
 - **FIX:** Home Assistant discovery for **ERT-SCM electric meters** so they no longer appear as gas meters; they now publish as **Energy (kWh)**.
