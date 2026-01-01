@@ -6,6 +6,7 @@
 - **FIX:** Utility meters now publish **correct units and scaling** based on the detected commodity:
   - **Electric (ERT-SCM / SCMplus):** publishes **Energy (kWh)** and converts from the protocol’s hundredths (÷100).
   - **Gas (ERT-SCM / SCMplus):** publishes **Gas volume (ft³)** by default (raw counter, no scaling).
+  
 - **NEW:** Add-on option `gas_unit` to publish gas in your preferred unit:
   - `ft3` (default): publish the raw counter as **ft³**
   - `ccf`: publish **CCF** (billing units) by converting from ft³ (÷100)
@@ -15,6 +16,7 @@
 - **FIX:** Improve resilience when spawning RTL tooling (`rtl_433`, `rtl_eeprom`) by tolerating non-UTF8 output (prevents rare startup/runtime decode crashes).
 - **FIX:** Improve Home Assistant MQTT discovery refresh when meter metadata arrives late (less need to “nuke” for unit/device_class corrections).
 - **NEW:** Add metadata support for common volume fields (e.g., `volume_gal`, `volume_ft3`, `volume_m3`) so they publish with appropriate units/icons.
+- **FIX:** Neptune-R900 water meters: publish `meter_reading` in **gallons** (model-aware unit override) for more accurate/default-friendly reporting.
 
 ### Migration from v1.1.13
 - **Gas meters (ERT-SCM / SCMplus):** v1.1.14 publishes **raw ft³ totals** by default. If you were previously seeing “CCF-like” numbers in v1.1.13, your gas sensor value may appear to jump by ~**100×** after upgrading. This is expected.
