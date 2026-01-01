@@ -15,9 +15,8 @@ def _patch_common(monkeypatch):
 
 
 def test_gas_default_ft3_when_configured(monkeypatch):
-    """When GAS_VOLUME_UNIT is ft3, gas readings remain ft³ and are not scaled."""
+    """Gas readings should publish in ft³ (raw) and not be scaled."""
     _patch_common(monkeypatch)
-    monkeypatch.setattr(config, "GAS_VOLUME_UNIT", "ft3", raising=False)
     monkeypatch.setattr(config, "MAIN_SENSORS", ["Consumption"], raising=False)
 
     h = mqtt_handler.HomeNodeMQTT(version="vtest")

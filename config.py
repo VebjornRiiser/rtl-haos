@@ -23,9 +23,7 @@ import os
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 OPTIONS_PATH = "/data/options.json"
-
 
 def _load_ha_options_into_env() -> None:
     """If running as a HA add-on, load options.json into env vars."""
@@ -50,9 +48,7 @@ def _load_ha_options_into_env() -> None:
     except Exception as e:  # pragma: no cover
         print(f"[CONFIG] Error loading options: {e}")
 
-
 _load_ha_options_into_env()
-
 
 class Settings(BaseSettings):
     """Main application settings."""
@@ -185,18 +181,6 @@ class Settings(BaseSettings):
     debug_raw_json: bool = Field(default=False)
     rtl_throttle_interval: int = Field(default=30)
 
-    # --- Utility meter display units ---
-    # rtl_433 / rtlamr-style meters often report gas volume in cubic feet.
-    # Some utilities (and some physical registers) show hundred cubic feet (CCF).
-    #
-    # Supported values:
-    #   - ft3 : cubic feet (default)
-    #   - ccf : hundred cubic feet
-    gas_volume_unit: str = Field(
-        default="ft3",
-        description="Display unit for gas volume utility meters: ft3 (cubic feet) or ccf (hundred cubic feet).",
-    )
-
     # --- Battery alert behavior (battery_ok -> Battery Low binary_sensor) ---
     # 0 disables latching and clears low immediately on the next OK.
     battery_ok_clear_after: int = Field(
@@ -207,7 +191,6 @@ class Settings(BaseSettings):
     @property
     def id_suffix(self) -> str:
         return "_v2" if self.force_new_ids else ""
-
 
 settings = Settings()
 
@@ -256,9 +239,6 @@ RTL_THROTTLE_INTERVAL = settings.rtl_throttle_interval
 RTL_SHOW_TIMESTAMPS = settings.rtl_show_timestamps
 
 VERBOSE_TRANSMISSIONS = settings.verbose_transmissions
-
-# Utility meters
-GAS_VOLUME_UNIT = settings.gas_volume_unit
 
 # Battery behavior
 BATTERY_OK_CLEAR_AFTER = settings.battery_ok_clear_after

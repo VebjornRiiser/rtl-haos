@@ -1,5 +1,3 @@
-import pytest
-
 import config
 import mqtt_handler
 
@@ -7,60 +5,82 @@ from ._mqtt_test_helpers import DummyClient, assert_float_str, last_discovery_pa
 
 
 def _patch_common(monkeypatch):
-    """Stable MQTT + config baseline so tests only focus on behavior."""
     monkeypatch.setattr(mqtt_handler.mqtt, "Client", lambda *a, **k: DummyClient())
     monkeypatch.setattr(mqtt_handler, "clean_mac", lambda s: "deadbeef")
-
-    # Deterministic discovery identifiers
     monkeypatch.setattr(config, "ID_SUFFIX", "_T", raising=False)
     monkeypatch.setattr(config, "BRIDGE_NAME", "Bridge", raising=False)
     monkeypatch.setattr(config, "BRIDGE_ID", "bridgeid", raising=False)
     monkeypatch.setattr(config, "RTL_EXPIRE_AFTER", 60, raising=False)
     monkeypatch.setattr(config, "VERBOSE_TRANSMISSIONS", False, raising=False)
-    monkeypatch.setattr(config, "MAIN_SENSORS", ["Consumption"], raising=False)
 
 
-def test_scmplus_ccf_updates_after_metertype(monkeypatch):
-    """If MeterType arrives after Consumption, we should update config + re-publish state in CCF."""
+def _count_publishes(client: DummyClient, topic: str) -> int:
+    return sum(1 for (t, _p, _r) in client.published if t == topic)
+
+
+def test_consumption_data_updates_to_kwh_after_ert_type(monkeypatch):
+    """
+    If a generic utility field arrives before we know commodity (e.g. ERT-SCM),
+    it may be discovered with default metadata. When ert_type arrives later and
+    indicates 'electric', we should refresh discovery + re-publish state using
+    energy/kWh metadata.
+    """
     _patch_common(monkeypatch)
-    monkeypatch.setattr(config, "GAS_VOLUME_UNIT", "ccf", raising=False)
+    monkeypatch.setattr(config, "MAIN_SENSORS", ["consumption_data"], raising=False)
 
     h = mqtt_handler.HomeNodeMQTT(version="vtest")
     c = h.client
 
-    # 1) Consumption arrives first (SCMplus gas Consumption is raw ft³)
-    h.send_sensor("device_x", "Consumption", 217504, "SCMplus deadbeef", "SCMplus")
+    # 1) consumption_data arrives first (before ert_type commodity hint)
+    h.send_sensor("device_x", "consumption_data", 217504, "ERT-SCM deadbeef", "ERT-SCM")
 
-    cfg1 = last_discovery_payload(c, domain="sensor", unique_id_with_suffix="deadbeef_Consumption_T")
+    cfg1 = last_discovery_payload(c, domain="sensor", unique_id_with_suffix="deadbeef_consumption_data_T")
     assert cfg1.get("device_class") == "gas"
-    assert cfg1.get("unit_of_measurement") == "ft³"  # default before we learn commodity
+    assert cfg1.get("unit_of_measurement") == "ft³"
 
-    st1 = last_state_payload(c, "deadbeef", "Consumption")
+    st1 = last_state_payload(c, "deadbeef", "consumption_data")
     assert_float_str(st1, 217504.0)
 
-    # 2) MeterType arrives later; triggers refresh of cached utility entities
-    h.send_sensor("device_x", "MeterType", "Gas", "SCMplus deadbeef", "SCMplus")
+    state_topic = "home/rtl_devices/deadbeef/consumption_data"
+    state_count_1 = _count_publishes(c, state_topic)
 
-    cfg2 = last_discovery_payload(c, domain="sensor", unique_id_with_suffix="deadbeef_Consumption_T")
-    assert cfg2.get("device_class") == "gas"
-    assert cfg2.get("unit_of_measurement") == "CCF"
+    # 2) ert_type arrives later indicating electric (4 is in the electric set)
+    h.send_sensor("device_x", "ert_type", 4, "ERT-SCM deadbeef", "ERT-SCM")
 
-    st2 = last_state_payload(c, "deadbeef", "Consumption")
-    assert_float_str(st2, 2175.04)
+    cfg2 = last_discovery_payload(c, domain="sensor", unique_id_with_suffix="deadbeef_consumption_data_T")
+    assert cfg2.get("device_class") == "energy"
+    assert cfg2.get("unit_of_measurement") == "kWh"
+
+    # Discovery metadata changed -> we should also re-publish the cached state.
+    st2 = last_state_payload(c, "deadbeef", "consumption_data")
+    assert_float_str(st2, 217504.0)
+
+    state_count_2 = _count_publishes(c, state_topic)
+    assert state_count_2 == state_count_1 + 1
 
 
-def test_scmplus_ccf_conversion_is_noop_for_non_numeric(monkeypatch):
-    """If a gas value isn't numeric, CCF conversion should not crash or mutate it."""
+def test_meter_type_does_not_require_gas_volume_unit(monkeypatch):
+    """
+    Regression: removing gas_volume_unit must not break late MeterType refresh paths.
+    We don't expect any ft³->CCF conversion anymore.
+    """
     _patch_common(monkeypatch)
-    monkeypatch.setattr(config, "GAS_VOLUME_UNIT", "ccf", raising=False)
+    monkeypatch.setattr(config, "MAIN_SENSORS", ["Consumption"], raising=False)
 
     h = mqtt_handler.HomeNodeMQTT(version="vtest")
     c = h.client
 
-    # Learn commodity so conversion path is active
-    h.send_sensor("device_x", "MeterType", "Gas", "SCMplus deadbeef", "SCMplus")
+    # Consumption first
+    h.send_sensor("device_x", "Consumption", 12345, "SCMplus deadbeef", "SCMplus")
+    cfg1 = last_discovery_payload(c, domain="sensor", unique_id_with_suffix="deadbeef_Consumption_T")
+    assert cfg1.get("device_class") == "gas"
+    assert cfg1.get("unit_of_measurement") == "ft³"
 
-    # Non-numeric values should publish as-is
-    h.send_sensor("device_x", "Consumption", "not-a-number", "SCMplus deadbeef", "SCMplus")
+    # MeterType later (no conversion expected; just ensure no crash and still ft³)
+    h.send_sensor("device_x", "MeterType", "Gas", "SCMplus deadbeef", "SCMplus")
+    cfg2 = last_discovery_payload(c, domain="sensor", unique_id_with_suffix="deadbeef_Consumption_T")
+    assert cfg2.get("device_class") == "gas"
+    assert cfg2.get("unit_of_measurement") == "ft³"
+
     st = last_state_payload(c, "deadbeef", "Consumption")
-    assert st == "not-a-number"
+    assert_float_str(st, 12345.0)

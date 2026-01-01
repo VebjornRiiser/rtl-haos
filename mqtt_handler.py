@@ -198,10 +198,6 @@ class HomeNodeMQTT:
         if commodity == "electric":
             return ("kWh", "energy", "mdi:flash", "Energy Reading")
         if commodity == "gas":
-            # Default is ft3 (Raw). If user requested CCF via config, we label it CCF.
-            # (Though in the "Clean" path, we encourage them to stick to ft3).
-            if str(getattr(config, "GAS_VOLUME_UNIT", "ft3")).strip().lower() == "ccf":
-                return ("CCF", "gas", "mdi:fire", "Gas Usage")
             return ("ft³", "gas", "mdi:fire", "Gas Usage")
         if commodity == "water":
             # Neptune R900 (protocol 228) typically reports gallons (often in tenths, normalized upstream).
@@ -210,28 +206,6 @@ class HomeNodeMQTT:
                 return ("gal", "water", "mdi:water-pump", "Water Usage")
             return ("ft³", "water", "mdi:water-pump", "Water Reading")
         return None
-
-
-    def _apply_utility_value_conversion(self, clean_id: str, field: str, value):
-        """Apply display-unit conversions for utility meter readings.
-
-        Note: model-specific normalization (e.g., ÷100) happens earlier.
-        This step is purely about user-facing *display units*.
-        """
-        commodity = self._commodity_by_device.get(clean_id)
-        if commodity != "gas":
-            return value
-
-        # If user explicitly set GAS_VOLUME_UNIT="ccf", we do the conversion here.
-        # Otherwise (default "ft3"), we pass the raw value through.
-        if str(getattr(config, "GAS_VOLUME_UNIT", "ft3")).strip().lower() == "ccf":
-            try:
-                return round(float(value) / 100.0, 4)
-            except (TypeError, ValueError):
-                return value
-        return value
-
-
     def _refresh_utility_entities_for_device(self, clean_id: str, device_name: str, device_model: str) -> None:
         """Re-publish discovery + state for cached utility readings for this device.
 
@@ -585,10 +559,6 @@ class HomeNodeMQTT:
         meta_override = None
         if field in {"Consumption", "consumption", "consumption_data", "meter_reading"}:
             meta_override = self._utility_meta_override(clean_id, field)
-
-        # Apply display-unit conversions AFTER normalization.
-        if field in {"Consumption", "consumption", "consumption_data", "meter_reading"}:
-            out_value = self._apply_utility_value_conversion(clean_id, field, out_value)
 
         # battery_ok: 1/True => battery OK, 0/False => battery LOW
         # Home Assistant's binary_sensor device_class "battery" expects:
