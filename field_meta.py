@@ -97,6 +97,12 @@ FIELD_META = {
     "consumption":          ("ft³", "gas", "mdi:fire", "Gas Usage"),
     "consumption_data":     ("ft³", "gas", "mdi:fire", "Gas Usage"),
     "meter_reading":        ("ft³", "water", "mdi:water-pump", "Water Reading"),
+    # Common rtl_433 water meter fields
+    # - Badger ORION emits volume_gal
+    # - Many wireless meter protocols expose volume in common units
+    "volume_gal":           ("gal", "water", "mdi:water-pump", "Water Usage"),
+    "volume_ft3":           ("ft³", "water", "mdi:water-pump", "Water Usage"),
+    "volume_m3":            ("m³", "water", "mdi:water-pump", "Water Usage"),
 
     # --- Battery ---
     # Many decoders emit battery_ok where 1/True means battery is OK and 0/False
@@ -105,3 +111,32 @@ FIELD_META = {
     "battery_ok":           (None, "battery", "mdi:battery", "Battery Low"),
 
 }
+
+# Per-model overrides for MQTT discovery metadata.
+# This keeps FIELD_META as conservative defaults while allowing correct units/names for specific devices.
+#
+# Keys are lowercase model prefixes (e.g. "neptune-r900") matched with startswith() after stripping.
+MODEL_FIELD_META = {
+    "neptune-r900": {
+        # Neptune-R900 readings are normalized to gallons upstream (often tenths-of-gallon).
+        "meter_reading": ("gal", "water", "mdi:water-pump", "Water Usage"),
+    },
+}
+
+def get_field_meta(field: str, device_model: str | None = None, base_meta: dict | None = None):
+    """Return (unit, device_class, icon, friendly_name) for a field, optionally model-aware.
+
+    This is designed to be *backwards compatible* with existing code/tests that monkeypatch
+    the `FIELD_META` dict from other modules (e.g., mqtt_handler.FIELD_META). Pass the dict
+    you want to consult via `base_meta`.
+    """
+    if device_model:
+        model_norm = str(device_model).strip().lower()
+        for prefix, mapping in MODEL_FIELD_META.items():
+            if model_norm.startswith(prefix):
+                meta = mapping.get(field)
+                if meta is not None:
+                    return meta
+
+    meta_source = base_meta if base_meta is not None else FIELD_META
+    return meta_source.get(field)

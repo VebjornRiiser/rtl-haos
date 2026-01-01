@@ -23,9 +23,7 @@ import os
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 OPTIONS_PATH = "/data/options.json"
-
 
 def _load_ha_options_into_env() -> None:
     """If running as a HA add-on, load options.json into env vars."""
@@ -50,9 +48,7 @@ def _load_ha_options_into_env() -> None:
     except Exception as e:  # pragma: no cover
         print(f"[CONFIG] Error loading options: {e}")
 
-
 _load_ha_options_into_env()
-
 
 class Settings(BaseSettings):
     """Main application settings."""
@@ -172,6 +168,9 @@ class Settings(BaseSettings):
             "consumption",
             "consumption_data",
             "meter_reading",
+            "volume_gal",
+            "volume_ft3",
+            "volume_m3",
             "moisture",
         ]
     )
@@ -179,6 +178,11 @@ class Settings(BaseSettings):
     # --- Publishing / processing ---
     rtl_expire_after: int = Field(default=600)
     force_new_ids: bool = Field(default=False)
+
+    # --- Utility meters ---
+    # Preferred unit for *gas* utility readings published by this add-on.
+    # Supported: 'ft3' (cubic feet) or 'ccf' (hundred cubic feet).
+    gas_unit: str = Field(default="ft3")
     debug_raw_json: bool = Field(default=False)
     rtl_throttle_interval: int = Field(default=30)
 
@@ -192,7 +196,6 @@ class Settings(BaseSettings):
     @property
     def id_suffix(self) -> str:
         return "_v2" if self.force_new_ids else ""
-
 
 settings = Settings()
 

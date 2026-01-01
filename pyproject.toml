@@ -20,7 +20,12 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --strict-markers"
+
+# CI/containers can emit noisy RuntimeWarnings from vendored psutil implementations.
+filterwarnings = [
+    "ignore:.*swap memory stats couldn't be determined.*:RuntimeWarning",
+]
 
 markers = [
   "integration: opt-in tests that execute rtl_433 (external process)",
