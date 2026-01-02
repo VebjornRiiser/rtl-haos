@@ -8,3 +8,8 @@ __pycache__/
 *.md
 *.log
 .DS_Store
+tests/
+*.zip
+coverage.xml
+.coverage
+.pytest_cache/

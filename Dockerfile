@@ -39,8 +39,7 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
-COPY *.py ./
-COPY config.yaml ./
+COPY . ./
 COPY run.sh /
 
 RUN chmod a+x /run.sh

@@ -160,6 +160,21 @@ cmd_deploy() {
   root="$(repo_root)"
   slug="$(read_slug "$root")"
 
+# Generate an untracked build marker so add-on runs can display vX.Y.Z+<sha> automatically.
+# This is intentionally not written into config.yaml (Supervisor expects X.Y.Z there).
+if command -v git >/dev/null 2>&1 && git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  local sha dirty
+  sha="$(git -C "$root" rev-parse --short HEAD 2>/dev/null || true)"
+  dirty=""
+  if ! git -C "$root" diff --quiet --ignore-submodules --; then
+    dirty="-dirty"
+  fi
+  if [[ -n "$sha" ]]; then
+    printf "%s%s" "$sha" "$dirty" > "${root}/build.txt" || true
+  fi
+fi
+
+
   local addon_id_dash="local_${slug}"
   local addon_id_us="local_${slug//-/_}"
 

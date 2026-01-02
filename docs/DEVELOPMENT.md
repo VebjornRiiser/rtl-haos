@@ -272,6 +272,11 @@ chmod +x scripts/haos.sh
 
 ### Deploy
 
+#### Build metadata (auto)
+
+When you deploy to HAOS using `./scripts/haos.sh deploy`, the script generates an untracked `build.txt` containing the current git short SHA (and `-dirty` if you have local changes). `run.sh` loads this into `RTL_HAOS_BUILD`, so the add-on will display versions like `v1.1.14+046cc83` automatically after each deploy/rebuild.
+
+
 Sync repo contents to HAOS:
 
 ```bash
