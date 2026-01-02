@@ -16,6 +16,8 @@
 ### Diagnostics & field metadata
 - **NEW:** Bridge diagnostics sensor: `sys_rtl_433_version` (captures `rtl_433 -V` once at startup).
 - **NEW:** Water/utility metadata mappings for additional total fields (e.g. `total_m3`, `total_l`, `consumption_at_set_date_m3`).
+- **NEW:** Expand `field_meta` coverage for common `rtl_433` fields (battery/pressure/wind/lux/UV/air quality/power/energy + common aliases like `*_dB`, multi-probe `temperature_#_*`, `humidity_#`).
+- **CHANGED:** Home Assistant MQTT discovery publishes richer units/device_class/icons for these fields. Existing installs may need a discovery refresh (clear retained discovery topics / NUKE) to see updated metadata.
 
 ### Command building & compatibility
 - **CHANGED:** `protocols` in `rtl_config` now accepts either a list or a comma/space-separated string (as commonly returned by HA add-on UI).
@@ -24,6 +26,9 @@
 ### Tests
 - **NEW:** Unit tests for version handling and command building.
 - **NEW:** Hardware-only smoke test for passthrough flags (skipped unless `RUN_HARDWARE_TESTS=1`).
+- **NEW:** Unit tests to lock down `field_meta` mappings and verify discovery payloads use them.
+- **NEW:** Optional fixture-driven guard test that flags unmapped/publishable fields from real `rtl_433` JSON captures (skips if no fixtures are present).
+- **FIX:** Ensure `run.sh` is executable (repo health test stability).
 
 ## v1.1.14
 

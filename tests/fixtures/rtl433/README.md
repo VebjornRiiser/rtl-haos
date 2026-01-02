@@ -4,6 +4,21 @@ Place one or more rtl_433 replay recordings in this directory to enable the repl
 
 - `tests/test_rtl433_integration.py::test_rtl433_replay_fixture_emits_json`
 
+## Optional: field_meta coverage guard (JSON fixtures)
+
+If you save *rtl_433 JSON lines* output into this folder, the unit test
+`tests/test_field_meta_fixture_unknowns.py` will verify that every field the
+add-on would publish has a `FIELD_META` (or model-specific override) entry.
+
+Example capture (20 seconds):
+
+```bash
+rtl_433 -F json -T 20 > tests/fixtures/rtl433/events.jsonl
+pytest -q tests/test_field_meta_fixture_unknowns.py
+```
+
+If the test fails, it prints paste-ready `FIELD_META` stubs for any missing keys.
+
 ## Quick start: record a fixture (hardware required)
 
 You can record raw I/Q samples with `rtl_sdr` and then replay them with rtl_433 using `-r`.
