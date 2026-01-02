@@ -2,7 +2,10 @@
 venv/
 __pycache__/
 *.pyc
-.git/
+# NOTE: We intentionally DO NOT ignore .git so the Docker build can derive
+# a short commit SHA for internal build metadata (vX.Y.Z+<sha>) when HAOS
+# pulls the add-on from Git.
+# The Dockerfile removes .git from the final image via a multi-stage copy.
 .gitignore
 .env
 *.md
