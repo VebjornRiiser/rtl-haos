@@ -73,7 +73,7 @@ rtl_config:
 
 ### Advanced: full rtl_433 passthrough
 
-RTL-HAOS can pass **arbitrary rtl_433 flags** and/or a full **rtl_433 config file**. This is the most flexible way to tune reception (gain/ppm/AGC), constrain decoders, or use tuner settings.
+RTL-HAOS can pass **arbitrary rtl_433 flags** and/or a full **rtl_433 config file** (same format as `rtl_433 -c`: one argument per line). This is the most flexible way to tune reception (gain/ppm/AGC), constrain decoders, or use tuner settings.
 
 **Global passthrough (applies to all radios):**
 

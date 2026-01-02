@@ -70,7 +70,8 @@ MQTT_USER=your_user
 MQTT_PASS=your_pass
 
 BRIDGE_ID=42
-BRIDGE_NAME=rtl-haos-dev
+BRIDGE_NAME=rtl-haos-bridge
+# Tip: keep BRIDGE_NAME stable; use BRIDGE_ID to differentiate instances and avoid duplicate devices from retained MQTT discovery
 ```
 
 Optional (use a custom rtl_433 binary / build):
@@ -88,7 +89,7 @@ RTL_433_ARGS=-g 40 -p 0 -t "direct_samp=1"
 Optional (manual multi-radio config from the host; note JSON string):
 
 ```ini
-RTL_CONFIG=[{"name":"utility","id":"102","freq":"915M","rate":"1024k","protocols":"4,12"},{"name":"weather","id":"201","freq":"433.92M","rate":"250k"}]
+RTL_CONFIG=[{"name":"utility","id":"102","freq":"915M","rate":"1024k","device":":00000001","protocols":"104,105","args":"-g 25 -t \"biastee=1\""},{"name":"weather","id":"201","freq":"433.92M","rate":"250k"}]
 ```
 
 ### 3) Start a local MQTT broker (if you don’t already have one)
