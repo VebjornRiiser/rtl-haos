@@ -203,7 +203,8 @@ MQTT_PASS=password
 Use these when you need manual `rtl_433` controls (gain/AGC/ppm/tuner settings) or want to supply a full `rtl_433` config file (`-c`).
 
 ```bash
-# Extra flags appended to every rtl_433 invocation (global defaults)
+# Global overrides applied to every rtl_433 invocation
+# Any option set here overrides the same option set per-radio/auto defaults; RTL-HAOS logs a WARNING per radio.
 RTL_433_ARGS='-g 40 -p 0'
 
 # Provide a config file passed via -c
@@ -218,7 +219,7 @@ RTL_433_CONFIG_INLINE=$'-g 25\n-R 104\n'
 RTL_433_BIN='rtl_433'
 ```
 
-Per-radio overrides are also supported via `rtl_config` (fields like `args`, `device`, `config_path`, `config_inline`, `bin`). See **docs/CONFIG.md** for full examples.
+Per-radio tuning is also supported via `rtl_config` (fields like `args`, `device`, `config_path`, `config_inline`, `bin`). If an option is present in `RTL_433_ARGS`, it **wins over** the same option set per-radio/defaults and RTL-HAOS will log a WARNING indicating the override. See **docs/CONFIG.md** for examples.
 
 **Build metadata (optional):**
 

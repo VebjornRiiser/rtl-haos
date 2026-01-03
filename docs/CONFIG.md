@@ -75,7 +75,12 @@ rtl_config:
 
 RTL-HAOS can pass **arbitrary rtl_433 flags** and/or a full **rtl_433 config file** (same format as `rtl_433 -c`: one argument per line). This is the most flexible way to tune reception (gain/ppm/AGC), constrain decoders, or use tuner settings.
 
-**Global passthrough (applies to all radios):**
+**Global passthrough & overrides (applies to all radios):**
+
+`rtl_433_args` is applied to every `rtl_433` invocation. **Any option you set here overrides the same option coming from per-radio settings or auto defaults** (e.g., `-s` sample rate, `-g` gain, `-p` ppm, `-R` decoders, etc.).
+
+When a global override replaces a per-radio/default value, RTL-HAOS logs a **WARNING per radio** so it’s obvious in the Home Assistant add-on logs (yellow). This is intentional: it makes it easy to configure multi-radio once, then temporarily apply a common tuning parameter to all radios for testing.
+
 
 ```yaml
 # Extra flags appended to every rtl_433 invocation
@@ -93,7 +98,17 @@ rtl_433_config_inline: |
   -R 105
 ```
 
-**Per-radio passthrough (overrides/extends the global settings):**
+**Global override example (force one sample rate for all radios):**
+
+```yaml
+rtl_433_args: "-s 2000k"
+```
+
+This will override the per-radio/auto `rate:` values for every radio, and you’ll see a WARNING per radio showing what was overridden.
+
+**Per-radio passthrough (adds radio-specific flags):**
+
+Per-radio fields (`args`, `device`, `config_path`, `config_inline`, `bin`) let you add radio-specific tuning. If a per-radio flag conflicts with an option present in `rtl_433_args`, **the global option wins** and RTL-HAOS will emit a WARNING indicating the override.
 
 ```yaml
 rtl_config:
@@ -107,7 +122,7 @@ rtl_config:
     # Extra flags for this radio only
     args: '-g 25 -t "biastee=1"'
 
-    # Optional: per-radio config file or inline config (takes precedence over global)
+    # Optional: per-radio config file or inline config (-c). Takes precedence over rtl_433_config_* globals; a -c in rtl_433_args will override and warn.
     config_path: "utility.conf"
     # config_inline: |
     #   -g 25
@@ -115,7 +130,8 @@ rtl_config:
 ```
 
 Notes:
-- RTL-HAOS prefers **JSON output**. If you add extra `-F` outputs, RTL-HAOS will ignore non-JSON lines, but your logs may be noisier.
+- RTL-HAOS requires **JSON output** to function; `-F json` is enforced. If you provide your own `-F`, RTL-HAOS will keep JSON enabled.
+- The startup log prints the final `rtl_433` command line per radio (copy/paste friendly) after overrides and de-duplication.
 - You can still use the simpler `protocols:` field for a quick `-R` filter.
 
 ### Device filtering

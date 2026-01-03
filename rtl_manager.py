@@ -75,6 +75,139 @@ def _parse_extra_args(value) -> list[str]:
         return [p for p in s.split(" ") if p]
 
 
+
+# --- rtl_433 passthrough override helpers ---
+# We treat any option present in global RTL_433_ARGS as an override for the same option
+# coming from per-radio defaults or per-radio passthrough args.
+#
+# This makes it easy to configure multi-radio setups using auto/manual configs, then
+# temporarily test a common setting (e.g., sample rate, gain, ppm) across all radios.
+
+# Best-effort list of rtl_433 options that consume a following value token.
+# (We only use this for filtering overridden options so we don't leave "dangling" values.)
+_RTL433_OPTIONS_TAKE_VALUE = {
+    "-a","-A","-b","-c","-C","-d","-D","-e","-f","-F","-g","-H","-k","-m","-M","-n","-p",
+    "-q","-r","-R","-s","-S","-t","-T","-u","-U","-V","-W","-x","-X","-y","-Y","-z","-Z",
+}
+
+
+def _is_option_token(tok: str) -> bool:
+    """Return True if token looks like an option (vs a value like -1)."""
+    if tok is None:
+        return False
+    s = str(tok)
+    if not s.startswith("-") or s == "-":
+        return False
+    # Treat negative numbers as values (e.g. -p -1)
+    if len(s) >= 2 and s[1].isdigit():
+        return False
+    return True
+
+
+def _normalize_option_key(tok: str) -> str:
+    """Normalize option key (e.g. '--gain=42' -> '--gain')."""
+    s = str(tok)
+    if s.startswith("--"):
+        return s.split("=", 1)[0]
+    return s
+
+
+def _argv_option_map(argv: list[str]) -> dict[str, list[list[str]]]:
+    """Build an option->occurrences map from an argv list (excluding the binary)."""
+    out: dict[str, list[list[str]]] = {}
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if _is_option_token(tok):
+            key = _normalize_option_key(tok)
+            vals: list[str] = []
+            if isinstance(tok, str) and tok.startswith("--") and "=" in tok:
+                vals = [tok.split("=", 1)[1]]
+            else:
+                takes_val = (key in _RTL433_OPTIONS_TAKE_VALUE) or str(tok).startswith("--")
+                if takes_val and i + 1 < len(argv) and not _is_option_token(argv[i + 1]):
+                    vals = [str(argv[i + 1])]
+                    i += 1
+            out.setdefault(key, []).append(vals)
+        i += 1
+    return out
+
+
+def _filter_overridden_options(argv: list[str], override_keys: set[str]) -> tuple[list[str], set[str]]:
+    """Remove any options (and their value tokens) whose key appears in override_keys."""
+    removed: set[str] = set()
+    filtered: list[str] = []
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if _is_option_token(tok):
+            key = _normalize_option_key(tok)
+            if key in override_keys:
+                removed.add(key)
+                # Consume token (and value if applicable), then skip
+                if isinstance(tok, str) and tok.startswith("--") and "=" in tok:
+                    i += 1
+                    continue
+                takes_val = (key in _RTL433_OPTIONS_TAKE_VALUE) or str(tok).startswith("--")
+                if takes_val and i + 1 < len(argv) and not _is_option_token(argv[i + 1]):
+                    i += 2
+                else:
+                    i += 1
+                continue
+        filtered.append(str(tok))
+        i += 1
+    return filtered, removed
+
+
+def _format_override_summary(key: str, local_map: dict, global_map: dict) -> str:
+    """Compact summary for an overridden option for log warnings."""
+    loc = local_map.get(key, [])
+    glob = global_map.get(key, [])
+    # Value preview (first occurrence's first value, if any)
+    def _preview(v):
+        if not v:
+            return ""
+        if v[0] and len(v[0]) > 0:
+            return str(v[0][0])
+        return ""
+
+    lprev = _preview(loc)
+    gprev = _preview(glob)
+
+    # If values exist, include them; also include counts when repeated.
+    if lprev or gprev:
+        lcount = len(loc) if loc else 0
+        gcount = len(glob) if glob else 0
+        if lcount > 1 or gcount > 1:
+            return f"{key}(local={lprev or '∅'}×{lcount}, global={gprev or '∅'}×{gcount})"
+        return f"{key}(local={lprev or '∅'}, global={gprev or '∅'})"
+    return key
+
+
+def _ensure_rtl433_outputs(cmd: list[str], *, radio_label: str, global_map: dict) -> list[str]:
+    """Ensure rtl_433 outputs JSON so RTL-HAOS can parse messages, and default metadata."""
+    argv = cmd[1:]
+    opt_map = _argv_option_map(argv)
+
+    # Ensure at least one '-F json'
+    has_json = False
+    for vals in opt_map.get("-F", []):
+        if vals and vals[0].lower() == "json":
+            has_json = True
+            break
+
+    if not has_json:
+        # If user specified -F globally but not json, call that out.
+        if "-F" in global_map and all((not v or (v[0].lower() != "json")) for v in global_map.get("-F", [])):
+            print(f"WARNING: [OVERRIDE]: rtl_433_args sets -F without 'json' for {radio_label}; RTL-HAOS will add '-F json' to remain functional.")
+        cmd.extend(["-F", "json"])
+
+    # Default metadata: add '-M level' if user didn't specify any -M
+    if "-M" not in opt_map:
+        cmd.extend(["-M", "level"])
+
+    return cmd
+
 def _resolve_config_path(path_str: str) -> str:
     """Resolve an rtl_433 config path.
 
@@ -140,9 +273,21 @@ def _write_inline_config(inline: str, radio_name: str, radio_id: str) -> str:
 
 
 def build_rtl_433_command(radio_config: dict) -> list[str]:
-    """Build the rtl_433 command for a single radio, honoring passthrough options."""
+    """Build the rtl_433 command for a single radio.
+
+    Precedence:
+      1) Base command from per-radio defaults and per-radio passthrough `args`
+      2) Global RTL_433_ARGS overrides any matching options (with a WARNING)
+      3) RTL-HAOS enforces '-F json' so output remains parseable
+    """
     radio_name = radio_config.get("name", "Unknown")
     radio_id = str(radio_config.get("id", "0"))
+    radio_label = f"{radio_name} (id {radio_id})"
+
+    # Parse global passthrough args ONCE so we can apply override semantics cleanly.
+    global_args = _parse_extra_args(getattr(config, "RTL_433_ARGS", ""))
+    global_map = _argv_option_map(global_args) if global_args else {}
+    override_keys = set(global_map.keys())
 
     # Executable (global default, per-radio override)
     exe = str(radio_config.get("bin") or getattr(config, "RTL_433_BIN", "rtl_433") or "rtl_433")
@@ -161,10 +306,7 @@ def build_rtl_433_command(radio_config: dict) -> list[str]:
     if cfg_file:
         cmd.extend(["-c", cfg_file])
 
-    # Global passthrough args (before per-radio defaults so radio_config can override).
-    cmd.extend(_parse_extra_args(getattr(config, "RTL_433_ARGS", "")))
-
-    # Device selection (-d) defaults. Users can override via args later.
+    # Device selection (-d) defaults.
     dev = radio_config.get("device")
     dev_index = radio_config.get("index")
     if dev is not None and str(dev).strip():
@@ -202,7 +344,6 @@ def build_rtl_433_command(radio_config: dict) -> list[str]:
         parsed: list[int] = []
         if raw:
             import re
-
             for tok in re.split(r"[\s,]+", raw):
                 if not tok:
                     continue
@@ -216,12 +357,24 @@ def build_rtl_433_command(radio_config: dict) -> list[str]:
         for p in protocols:
             cmd.extend(["-R", str(p)])
 
-    # Per-radio passthrough args last (so it can override global and defaults).
+    # Per-radio passthrough args (may be overridden by RTL_433_ARGS below).
     cmd.extend(_parse_extra_args(radio_config.get("args", "")))
 
-    # Ensure JSON output is enabled so RTL-HAOS can parse messages.
-    # If users add other -F outputs, we will ignore non-JSON lines.
-    cmd.extend(["-F", "json", "-M", "level"])
+    # Apply global overrides: any option present in RTL_433_ARGS wins.
+    if global_args:
+        local_argv = cmd[1:]
+        local_map = _argv_option_map(local_argv)
+        filtered_argv, removed = _filter_overridden_options(local_argv, override_keys)
+
+        if removed:
+            parts = ", ".join(_format_override_summary(k, local_map, global_map) for k in sorted(removed))
+            print(f"WARNING: [OVERRIDE]: rtl_433_args overrides {parts} for {radio_label}.")
+
+        cmd = [cmd[0]] + filtered_argv
+        cmd.extend(global_args)
+
+    # Ensure JSON output so RTL-HAOS can parse messages, plus default metadata.
+    cmd = _ensure_rtl433_outputs(cmd, radio_label=radio_label, global_map=global_map)
 
     return cmd
 

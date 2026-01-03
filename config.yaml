@@ -27,8 +27,10 @@ options:
   verbose_transmissions: false  # Log every single MQTT publish
 
   # Advanced: pass through extra rtl_433 flags and/or a config file.
-  # NOTE: RTL-HAOS parses rtl_433 JSON lines. You can add additional -F outputs,
-  # but ensure JSON remains enabled (RTL-HAOS will ignore non-JSON lines).
+  # rtl_433_args acts as a GLOBAL OVERRIDE: if it includes an option that is also
+  # set by per-radio settings or auto defaults (e.g. -s/-f/-d/-H/-R), the global
+  # value wins and RTL-HAOS logs a WARNING per radio.
+  # NOTE: RTL-HAOS requires JSON output; -F json is enforced (non-JSON lines are ignored).
   rtl_433_args: ""
   rtl_433_config_path: ""
   rtl_433_config_inline: ""

@@ -22,6 +22,8 @@
 ### Command building & compatibility
 - **CHANGED:** `protocols` in `rtl_config` now accepts either a list or a comma/space-separated string (as commonly returned by HA add-on UI).
 - **CHANGED:** `rtl_433` command creation is centralized and always forces `-F json -M level` so RTL-HAOS can parse messages (non-JSON lines are ignored).
+- **NEW:** Startup logs print the full `rtl_433` command line per radio (`rtl_433 cmd ...`) for copy/paste troubleshooting.
+- **CHANGED:** Global passthrough (`RTL_433_ARGS` / `rtl_433_args`) now acts as a **global override**: any option present wins over per-radio settings/auto defaults, with a **WARNING per radio** and de-duplicated flags.
 
 ### Tests
 - **NEW:** Unit tests for version handling and command building.

@@ -230,3 +230,37 @@ def test_build_cmd_inline_config_writes_temp_file(monkeypatch):
     with open(cfg_path, "r", encoding="utf-8") as f:
         content = f.read()
     assert "-g 0" in content and "-R 11" in content
+
+
+def test_rtl433_args_overrides_per_radio_settings_and_warns(monkeypatch, capsys):
+    """Global RTL_433_ARGS should override per-radio defaults/args and emit a WARNING."""
+    import config
+    import rtl_manager
+
+    # Global override forces sample rate and ppm for ALL radios.
+    monkeypatch.setattr(config, "RTL_433_ARGS", "-s 2000k -p -1")
+
+    radio = {
+        "index": 0,
+        "freq": "433.92M",
+        "rate": "250k",
+        "hop_interval": 0,
+        "name": "TestRadio",
+        "id": "101",
+        # Per-radio args also try to set sample rate; global should win.
+        "args": "-s 1024k",
+    }
+
+    cmd = rtl_manager.build_rtl_433_command(radio)
+    cmd_str = " ".join(map(str, cmd))
+
+    # Only ONE '-s' and it should be the global override.
+    assert cmd.count("-s") == 1
+    assert _find_flag_value(cmd, "-s") == "2000k"
+    assert "1024k" not in cmd_str
+    assert "250k" not in cmd_str
+
+    out = (capsys.readouterr().out or "").lower()
+    assert "warning" in out
+    assert "override" in out
+    assert "-s" in out
