@@ -41,3 +41,4 @@ tests/fixtures/rtl433/*.wav
 # (optional) anything dropped into the rtl433 fixture folder
 tests/fixtures/rtl433/*
 !tests/fixtures/rtl433/README.md
+build.txt

@@ -19,6 +19,23 @@ Band plan options:
 - `eu`: force 868 MHz for Radio #2
 - `world`: hop 868 + 915 on Radio #2 (best when country is unknown)
 
+
+### Testing a common rtl_433 setting across all radios
+
+In multi-radio setups, it’s common to want a **temporary global tweak** (sample rate, gain, ppm, decoder filters, etc.) applied to every `rtl_433` instance.
+
+Use `rtl_433_args` for this. Any option present in `rtl_433_args` becomes a **global override**: it replaces the same option set by per-radio settings or auto defaults. RTL-HAOS logs a **WARNING per radio** when an override occurs (yellow in HA logs).
+
+The startup log also prints the final **copy/paste-friendly** `rtl_433` command line for each radio.
+
+Example (force one sample rate everywhere):
+
+```yaml
+rtl_433_args: "-s 2000k"
+```
+
+> Be careful overriding radio-defining options like `-f`, `-d`, or `-H` in auto multi-radio mode: this can defeat the automatic frequency/device allocation. It’s allowed (for experimentation), but you’ll see override warnings in the startup log.
+
 ### Optional 3rd radio: regional hopper
 
 If you have 3 dongles, **Radio #3 becomes a hopper** that scans “interesting” nearby bands for your region.

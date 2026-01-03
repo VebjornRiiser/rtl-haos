@@ -23,6 +23,162 @@ To leave the venv:
 deactivate
 ```
 
+
+## Version strings (base vs build metadata)
+
+RTL-HAOS keeps a single, canonical **base version** in `config.yaml` under `version:`.
+
+- **Base version (what HAOS/Supervisor expects):** `VER.REV.PATCH` (SemVer-ish), e.g. `1.2.0-rc.1`
+- **Display version (logs + HA device info):** `vVER.REV.PATCH+BUILD`, e.g. `v1.2.0-rc.1+g3f2a9c1`
+
+Important: **do not append letters** to the base version (for example `1.2.0-rc.1x`). Keep `config.yaml` strictly `X.Y.Z` and use **build metadata** instead.
+
+### Setting the build metadata
+
+RTL-HAOS reads build metadata from the environment variable `RTL_HAOS_BUILD` and appends it as SemVer build metadata (`+...`).
+
+**Local host / venv**
+
+```bash
+export RTL_HAOS_BUILD=dev
+python -u main.py
+# >>> ... (v1.2.0-rc.1+dev) <<<
+```
+
+Common pattern (git short SHA):
+
+```bash
+export RTL_HAOS_BUILD="$(git rev-parse --short HEAD)"
+python -u main.py
+```
+
+You can also put it in `.env` for local development:
+
+```ini
+RTL_HAOS_BUILD=dev
+```
+
+**Docker**
+
+At runtime:
+
+```bash
+docker run -e RTL_HAOS_BUILD=dev ...
+```
+
+Or at build time (if your build system passes args):
+
+```bash
+docker build --build-arg RTL_HAOS_BUILD="$(git rev-parse --short HEAD)" -t rtl-haos:dev .
+```
+
+**HAOS add-on (local development)**
+
+Home Assistant Supervisor builds add-ons from the repo contents and does **not** reliably pass custom Docker build args for local add-ons. For local HAOS dev, the simplest options are:
+
+1) **Dev-only `run.sh` export**: temporarily add `export RTL_HAOS_BUILD=...` near the top of `run.sh`, then rebuild/restart the add-on.
+
+2) **Optional UI knob** (if you choose to add it): add a `build:` option in `config.yaml` + `schema`, and in `run.sh` export it as `RTL_HAOS_BUILD`.
+
+After changing build/base version, **rebuild + restart** the add-on so MQTT discovery/device info is republished.
+
+### Update notifications (REV-only)
+
+For update alerts, treat **REV** as the “notify threshold”: patch/build changes can be applied by users who rebuild when needed, but only **REV** bumps should generate broad update notifications.
+
+A simple rule is to derive a notify version like `VER.REV.0` (ignore PATCH/BUILD) for comparison/alerts while still showing the full display version everywhere else.
+
+## Run RTL-HAOS from a development host venv
+
+This runs the same Python app you ship in the add-on, but directly on your dev machine (no Supervisor, no container).
+Configuration is read from **environment variables / `.env`** (since `/data/options.json` is add-on-only).
+
+### Prereqs
+
+- **Python**: whatever your venv script selects (recommended: use `./scripts/pytest_venv.sh` below)
+- **MQTT broker** reachable from your dev host
+  - If you already use Home Assistant’s Mosquitto add-on, point `MQTT_HOST` at your HA box IP
+  - Or run a local broker (example below)
+- **rtl_433** installed and in `PATH` (or set `RTL_433_BIN` to your custom build)
+
+Quick check:
+
+```bash
+rtl_433 -V
+```
+
+### 1) Create & activate the venv
+
+Use the same venv helper you already use for tests (it installs RTL-HAOS + deps in editable mode):
+
+```bash
+./scripts/pytest_venv.sh --no-run
+source .venv-pytest/bin/activate
+```
+
+### 2) Create a `.env`
+
+Start from the example:
+
+```bash
+cp .env.example .env
+```
+
+Minimum settings to get MQTT discovery into Home Assistant:
+
+```ini
+# .env
+MQTT_HOST=192.168.1.109
+MQTT_PORT=1883
+MQTT_USER=your_user
+MQTT_PASS=your_pass
+
+BRIDGE_ID=42
+BRIDGE_NAME=rtl-haos-bridge
+# Tip: keep BRIDGE_NAME stable; use BRIDGE_ID to differentiate instances and avoid duplicate devices from retained MQTT discovery
+```
+
+Optional (use a custom rtl_433 binary / build):
+
+```ini
+RTL_433_BIN=/path/to/rtl_433
+```
+
+Optional (pass through any rtl_433 flags globally):
+
+```ini
+RTL_433_ARGS=-g 40 -p 0 -t "direct_samp=1"
+```
+
+Optional (manual multi-radio config from the host; note JSON string):
+
+```ini
+RTL_CONFIG=[{"name":"utility","id":"102","freq":"915M","rate":"1024k","device":":00000001","protocols":"104,105","args":"-g 25 -t \"biastee=1\""},{"name":"weather","id":"201","freq":"433.92M","rate":"250k"}]
+```
+
+### 3) Start a local MQTT broker (if you don’t already have one)
+
+```bash
+docker run --rm -p 1883:1883 eclipse-mosquitto:2
+```
+
+Then set `MQTT_HOST=127.0.0.1` in `.env`.
+
+### 4) Run RTL-HAOS
+
+From repo root:
+
+```bash
+python -u main.py
+```
+
+Stop with **Ctrl+C**.
+
+### Notes
+
+- **USB permissions**: on Linux you may need udev rules / group membership (or run as root) to access RTL-SDR dongles.
+- **No hardware**: RTL-HAOS will warn if no RTL-SDR devices are found. For most development work, unit tests are the fastest path; for end-to-end behavior, run on a host with an SDR attached.
+
 ## Testing
 
 ### Unit tests (default)
@@ -115,6 +271,11 @@ chmod +x scripts/haos.sh
 ```
 
 ### Deploy
+
+#### Build metadata (auto)
+
+When you deploy to HAOS using `./scripts/haos.sh deploy`, the script generates an untracked `build.txt` containing the current git short SHA (and `-dirty` if you have local changes). `run.sh` loads this into `RTL_HAOS_BUILD`, so the add-on will display versions like `v1.2.0-rc.1+046cc83` automatically after each deploy/rebuild.
+
 
 Sync repo contents to HAOS:
 

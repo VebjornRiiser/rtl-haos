@@ -1,6 +1,6 @@
 name: "RTL-HAOS"
 description: "RTL-SDR to Home Assistant MQTT bridge with signal diagnostics and system monitoring"
-version: "1.1.14"
+version: "1.2.0-rc.1"
 slug: rtl-haos
 url: "https://github.com/jaronmcd/rtl-haos"
 arch:
@@ -25,6 +25,16 @@ options:
   debug_raw_json: false
   rtl_show_timestamps: false
   verbose_transmissions: false  # Log every single MQTT publish
+
+  # Advanced: pass through extra rtl_433 flags and/or a config file.
+  # rtl_433_args acts as a GLOBAL OVERRIDE: if it includes an option that is also
+  # set by per-radio settings or auto defaults (e.g. -s/-f/-d/-H/-R), the global
+  # value wins and RTL-HAOS logs a WARNING per radio.
+  # NOTE: RTL-HAOS requires JSON output; -F json is enforced (non-JSON lines are ignored).
+  rtl_433_args: ""
+  rtl_433_config_path: ""
+  rtl_433_config_inline: ""
+  rtl_433_bin: "rtl_433"
 
   # --- Battery alert behavior (battery_ok -> Battery Low) ---
   # 0 disables latching and clears low on the next OK
@@ -71,6 +81,12 @@ schema:
   rtl_show_timestamps: bool
   verbose_transmissions: bool
 
+  # Advanced rtl_433 passthrough
+  rtl_433_args: str?
+  rtl_433_config_path: str?
+  rtl_433_config_inline: str?
+  rtl_433_bin: str?
+
   # Auto multi-radio (when rtl_config is empty)
   rtl_auto_band_plan: list(auto|us|eu|world)
 
@@ -86,6 +102,23 @@ schema:
       rate: str?
       hop_interval: int?
 
+      # Optional per-radio protocol filter (rtl_433 -R).
+      # Provide a comma-separated list, e.g. "104,105".
+      # NOTE: We intentionally model this as a string to keep it truly optional
+      # in the Home Assistant Supervisor UI. Nested lists inside list-of-dicts
+      # are treated as required containers by Supervisor schema validation.
+      protocols: str?
+
+      # Advanced per-radio rtl_433 passthrough
+      # - device: overrides -d (index/serial/Soapy selectors supported)
+      # - args: extra rtl_433 flags (appended after freq/rate defaults)
+      # - config_path/config_inline: provide an rtl_433 config file via -c
+      device: str?
+      args: str?
+      config_path: str?
+      config_inline: str?
+      bin: str?
+
   device_blacklist:
     - str
   device_whitelist:
@@ -94,3 +127,4 @@ services:
   - mqtt:want
 map:
   - config
+  - share

@@ -1,6 +1,13 @@
 #!/usr/bin/with-contenv bashio
 # shellcheck shell=bash
 
+# Auto-set RTL_HAOS_BUILD from a build file shipped in the image (for HAOS/local add-on dev).
+# This avoids relying on Docker build args (which Supervisor may not pass for local add-ons).
+if [ -z "${RTL_HAOS_BUILD:-}" ] && [ -f /app/build.txt ]; then
+    export RTL_HAOS_BUILD="$(tr -d '\r\n' < /app/build.txt)"
+fi
+
+
 # Detect if running as Home Assistant Add-on
 if [ -f /data/options.json ]; then
     # Home Assistant Add-on mode

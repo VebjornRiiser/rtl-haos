@@ -9,6 +9,10 @@ import time
 import fnmatch
 import copy
 import sys
+import os
+import shlex
+from pathlib import Path
+
 from datetime import datetime
 from typing import Optional
 
@@ -17,6 +21,362 @@ from utils import clean_mac, calculate_dew_point
 
 # --- Process Tracking ---
 ACTIVE_PROCESSES = []
+
+
+def _format_cmd(cmd: list[str]) -> str:
+    """Format a command list into a copy/paste-friendly shell line."""
+    parts = [str(p) for p in (cmd or [])]
+    if not parts:
+        return ""
+    try:
+        # Python 3.8+
+        return shlex.join(parts)
+    except Exception:
+        # Very defensive fallback
+        return " ".join(shlex.quote(p) for p in parts)
+
+
+def _split_csv(s: str) -> list[str]:
+    return [p.strip() for p in str(s or "").split(",") if p and str(p).strip()]
+
+
+def _parse_extra_args(value) -> list[str]:
+    """Parse extra rtl_433 args from a string or JSON list.
+
+    Home Assistant options are usually strings; standalone users may also pass JSON arrays
+    via env vars. We accept:
+      - "-g 40 -p 0" (shell-like string; supports quotes)
+      - "[\"-g\", \"40\"]" (JSON list in a string)
+      - ["-g", "40"] (already-parsed list)
+    """
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(v) for v in value if str(v).strip()]
+
+    s = str(value).strip()
+    if not s:
+        return []
+
+    # JSON list (common in .env / env var overrides)
+    if s.startswith("[") and s.endswith("]"):
+        try:
+            arr = json.loads(s)
+            if isinstance(arr, list):
+                return [str(v) for v in arr if str(v).strip()]
+        except Exception:
+            pass
+
+    # Shell-like parsing (supports quoted strings)
+    try:
+        return shlex.split(s)
+    except Exception:
+        # Very defensive fallback
+        return [p for p in s.split(" ") if p]
+
+
+
+# --- rtl_433 passthrough override helpers ---
+# We treat any option present in global RTL_433_ARGS as an override for the same option
+# coming from per-radio defaults or per-radio passthrough args.
+#
+# This makes it easy to configure multi-radio setups using auto/manual configs, then
+# temporarily test a common setting (e.g., sample rate, gain, ppm) across all radios.
+
+# Best-effort list of rtl_433 options that consume a following value token.
+# (We only use this for filtering overridden options so we don't leave "dangling" values.)
+_RTL433_OPTIONS_TAKE_VALUE = {
+    "-a","-A","-b","-c","-C","-d","-D","-e","-f","-F","-g","-H","-k","-m","-M","-n","-p",
+    "-q","-r","-R","-s","-S","-t","-T","-u","-U","-V","-W","-x","-X","-y","-Y","-z","-Z",
+}
+
+
+def _is_option_token(tok: str) -> bool:
+    """Return True if token looks like an option (vs a value like -1)."""
+    if tok is None:
+        return False
+    s = str(tok)
+    if not s.startswith("-") or s == "-":
+        return False
+    # Treat negative numbers as values (e.g. -p -1)
+    if len(s) >= 2 and s[1].isdigit():
+        return False
+    return True
+
+
+def _normalize_option_key(tok: str) -> str:
+    """Normalize option key (e.g. '--gain=42' -> '--gain')."""
+    s = str(tok)
+    if s.startswith("--"):
+        return s.split("=", 1)[0]
+    return s
+
+
+def _argv_option_map(argv: list[str]) -> dict[str, list[list[str]]]:
+    """Build an option->occurrences map from an argv list (excluding the binary)."""
+    out: dict[str, list[list[str]]] = {}
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if _is_option_token(tok):
+            key = _normalize_option_key(tok)
+            vals: list[str] = []
+            if isinstance(tok, str) and tok.startswith("--") and "=" in tok:
+                vals = [tok.split("=", 1)[1]]
+            else:
+                takes_val = (key in _RTL433_OPTIONS_TAKE_VALUE) or str(tok).startswith("--")
+                if takes_val and i + 1 < len(argv) and not _is_option_token(argv[i + 1]):
+                    vals = [str(argv[i + 1])]
+                    i += 1
+            out.setdefault(key, []).append(vals)
+        i += 1
+    return out
+
+
+def _filter_overridden_options(argv: list[str], override_keys: set[str]) -> tuple[list[str], set[str]]:
+    """Remove any options (and their value tokens) whose key appears in override_keys."""
+    removed: set[str] = set()
+    filtered: list[str] = []
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if _is_option_token(tok):
+            key = _normalize_option_key(tok)
+            if key in override_keys:
+                removed.add(key)
+                # Consume token (and value if applicable), then skip
+                if isinstance(tok, str) and tok.startswith("--") and "=" in tok:
+                    i += 1
+                    continue
+                takes_val = (key in _RTL433_OPTIONS_TAKE_VALUE) or str(tok).startswith("--")
+                if takes_val and i + 1 < len(argv) and not _is_option_token(argv[i + 1]):
+                    i += 2
+                else:
+                    i += 1
+                continue
+        filtered.append(str(tok))
+        i += 1
+    return filtered, removed
+
+
+def _format_override_summary(key: str, local_map: dict, global_map: dict) -> str:
+    """Compact summary for an overridden option for log warnings."""
+    loc = local_map.get(key, [])
+    glob = global_map.get(key, [])
+    # Value preview (first occurrence's first value, if any)
+    def _preview(v):
+        if not v:
+            return ""
+        if v[0] and len(v[0]) > 0:
+            return str(v[0][0])
+        return ""
+
+    lprev = _preview(loc)
+    gprev = _preview(glob)
+
+    # If values exist, include them; also include counts when repeated.
+    if lprev or gprev:
+        lcount = len(loc) if loc else 0
+        gcount = len(glob) if glob else 0
+        if lcount > 1 or gcount > 1:
+            return f"{key}(local={lprev or '∅'}×{lcount}, global={gprev or '∅'}×{gcount})"
+        return f"{key}(local={lprev or '∅'}, global={gprev or '∅'})"
+    return key
+
+
+def _ensure_rtl433_outputs(cmd: list[str], *, radio_label: str, global_map: dict) -> list[str]:
+    """Ensure rtl_433 outputs JSON so RTL-HAOS can parse messages, and default metadata."""
+    argv = cmd[1:]
+    opt_map = _argv_option_map(argv)
+
+    # Ensure at least one '-F json'
+    has_json = False
+    for vals in opt_map.get("-F", []):
+        if vals and vals[0].lower() == "json":
+            has_json = True
+            break
+
+    if not has_json:
+        # If user specified -F globally but not json, call that out.
+        if "-F" in global_map and all((not v or (v[0].lower() != "json")) for v in global_map.get("-F", [])):
+            print(f"WARNING: [OVERRIDE]: rtl_433_args sets -F without 'json' for {radio_label}; RTL-HAOS will add '-F json' to remain functional.")
+        cmd.extend(["-F", "json"])
+
+    # Default metadata: add '-M level' if user didn't specify any -M
+    if "-M" not in opt_map:
+        cmd.extend(["-M", "level"])
+
+    return cmd
+
+def _resolve_config_path(path_str: str) -> str:
+    """Resolve an rtl_433 config path.
+
+    - Absolute paths are used as-is.
+    - Relative paths are searched in common HA add-on mounts first:
+      /share, /config, /data
+    - If not found, return the original relative path (rtl_433 may still resolve it).
+    """
+    p = str(path_str or "").strip()
+    if not p:
+        return ""
+
+    # Expand ~ (mostly useful in standalone)
+    p = os.path.expanduser(p)
+
+    if os.path.isabs(p):
+        return p
+
+    candidates = [
+        Path("/share") / p,
+        Path("/config") / p,
+        Path("/data") / p,
+        Path.cwd() / p,
+    ]
+    for c in candidates:
+        try:
+            if c.exists():
+                return str(c)
+        except Exception:
+            continue
+
+    return p
+
+
+def _write_inline_config(inline: str, radio_name: str, radio_id: str) -> str:
+    """Write inline rtl_433 config content to a temp file and return its path.
+
+    Uses a unique filename under /tmp to avoid collisions between runs (and permission
+    issues if a prior file exists with a different owner).
+    """
+    content = (inline or "").rstrip()
+    if not content.strip():
+        return ""
+
+    safe = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in (radio_name or "radio").lower())
+
+    try:
+        import tempfile
+        # Ensure the filename still starts with /tmp/rtl_433_ so tests and tooling can rely on it.
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            prefix=f"rtl_433_{safe}_{radio_id}_",
+            suffix=".conf",
+            dir="/tmp",
+            delete=False,
+        ) as f:
+            f.write(content + "\n")
+            return f.name
+    except Exception as e:
+        print(f"[RTL] Warning: Failed writing inline rtl_433 config to /tmp: {e}")
+        return ""
+
+
+def build_rtl_433_command(radio_config: dict) -> list[str]:
+    """Build the rtl_433 command for a single radio.
+
+    Precedence:
+      1) Base command from per-radio defaults and per-radio passthrough `args`
+      2) Global RTL_433_ARGS overrides any matching options (with a WARNING)
+      3) RTL-HAOS enforces '-F json' so output remains parseable
+    """
+    radio_name = radio_config.get("name", "Unknown")
+    radio_id = str(radio_config.get("id", "0"))
+    radio_label = f"{radio_name} (id {radio_id})"
+
+    # Parse global passthrough args ONCE so we can apply override semantics cleanly.
+    global_args = _parse_extra_args(getattr(config, "RTL_433_ARGS", ""))
+    global_map = _argv_option_map(global_args) if global_args else {}
+    override_keys = set(global_map.keys())
+
+    # Executable (global default, per-radio override)
+    exe = str(radio_config.get("bin") or getattr(config, "RTL_433_BIN", "rtl_433") or "rtl_433")
+    cmd: list[str] = [exe]
+
+    # Choose config file (-c). Precedence: per-radio inline/path -> global inline/path.
+    inline = radio_config.get("config_inline") or getattr(config, "RTL_433_CONFIG_INLINE", "")
+    path = radio_config.get("config_path") or getattr(config, "RTL_433_CONFIG_PATH", "")
+
+    cfg_file = ""
+    if isinstance(inline, str) and inline.strip():
+        cfg_file = _write_inline_config(inline, radio_name, radio_id)
+    elif isinstance(path, str) and path.strip():
+        cfg_file = _resolve_config_path(path)
+
+    if cfg_file:
+        cmd.extend(["-c", cfg_file])
+
+    # Device selection (-d) defaults.
+    dev = radio_config.get("device")
+    dev_index = radio_config.get("index")
+    if dev is not None and str(dev).strip():
+        cmd.extend(["-d", str(dev).strip()])
+    elif dev_index is not None:
+        cmd.extend(["-d", str(dev_index)])
+    else:
+        cmd.extend(["-d", str(radio_id)])
+
+    # Frequency (-f)
+    freq_str = str(radio_config.get("freq", getattr(config, "RTL_DEFAULT_FREQ", "433.92M")))
+    frequencies = _split_csv(freq_str)
+    for f in frequencies:
+        cmd.extend(["-f", f])
+
+    # Hop Interval (-H) only if multi-freq
+    hop_interval = radio_config.get("hop_interval", getattr(config, "RTL_DEFAULT_HOP_INTERVAL", 60))
+    if len(frequencies) > 1:
+        try:
+            hop_interval = int(hop_interval)
+        except Exception:
+            hop_interval = 60
+        if hop_interval <= 0:
+            hop_interval = 60
+        cmd.extend(["-H", str(hop_interval)])
+
+    # Sample Rate (-s)
+    rate = radio_config.get("rate", getattr(config, "RTL_DEFAULT_RATE", "250k"))
+    cmd.extend(["-s", str(rate)])
+
+    # Protocols (-R)
+    protocols = radio_config.get("protocols")
+    if isinstance(protocols, str):
+        raw = protocols.strip()
+        parsed: list[int] = []
+        if raw:
+            import re
+            for tok in re.split(r"[\s,]+", raw):
+                if not tok:
+                    continue
+                try:
+                    parsed.append(int(tok))
+                except ValueError:
+                    print(f"[RTL] Warning: Ignoring invalid protocol value: {tok!r}")
+        protocols = parsed
+
+    if protocols:
+        for p in protocols:
+            cmd.extend(["-R", str(p)])
+
+    # Per-radio passthrough args (may be overridden by RTL_433_ARGS below).
+    cmd.extend(_parse_extra_args(radio_config.get("args", "")))
+
+    # Apply global overrides: any option present in RTL_433_ARGS wins.
+    if global_args:
+        local_argv = cmd[1:]
+        local_map = _argv_option_map(local_argv)
+        filtered_argv, removed = _filter_overridden_options(local_argv, override_keys)
+
+        if removed:
+            parts = ", ".join(_format_override_summary(k, local_map, global_map) for k in sorted(removed))
+            print(f"WARNING: [OVERRIDE]: rtl_433_args overrides {parts} for {radio_label}.")
+
+        cmd = [cmd[0]] + filtered_argv
+        cmd.extend(global_args)
+
+    # Ensure JSON output so RTL-HAOS can parse messages, plus default metadata.
+    cmd = _ensure_rtl433_outputs(cmd, radio_label=radio_label, global_map=global_map)
+
+    return cmd
 
 
 def _safe_status_suffix(value) -> str:
@@ -343,41 +703,20 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
     if radio_name and str(radio_name).strip() and str(radio_name).strip().lower() != "unknown":
         status_friendly = f"{radio_name} Status"
 
-    # Build Command
-    cmd = ["rtl_433", "-F", "json", "-M", "level"]
 
-    # Device selection (-d)
-    dev_index = radio_config.get("index")
-    if dev_index is not None:
-        cmd.extend(["-d", str(dev_index)])
-    else:
-        cmd.extend(["-d", str(radio_id)])
+    # Build Command (honors rtl_433 passthrough options)
+    cmd = build_rtl_433_command(radio_config)
 
-    # Frequency (-f)
-    freq_str = str(radio_config.get("freq", config.RTL_DEFAULT_FREQ))
-    frequencies = [f.strip() for f in freq_str.split(",") if f.strip()]
-    for f in frequencies:
-        cmd.extend(["-f", f])
-
-    # Hop Interval (-H)
-    hop_interval = radio_config.get("hop_interval", config.RTL_DEFAULT_HOP_INTERVAL)
-    if len(frequencies) > 1:
-        if hop_interval <= 0:
-            hop_interval = 60
-        cmd.extend(["-H", str(hop_interval)])
-
-    # Sample Rate (-s)
-    rate = radio_config.get("rate", config.RTL_DEFAULT_RATE)
-    cmd.extend(["-s", str(rate)])
-
-    protocols = radio_config.get("protocols", [])
-    if protocols:
-        for p in protocols:
-            cmd.extend(["-R", str(p)])
+    # Used for status strings/logging (best-effort: based on configured freq/rate)
+    freq_str = str(radio_config.get("freq", getattr(config, "RTL_DEFAULT_FREQ", "433.92M")))
+    frequencies = _split_csv(freq_str)
+    rate = radio_config.get("rate", getattr(config, "RTL_DEFAULT_RATE", "250k"))
 
     freq_display = ",".join(frequencies) if frequencies else "default"
 
     print(f"[RTL] Starting {radio_name} on {freq_display} (Rate: {rate})...")
+    # Show the exact command line we will run (copy/paste friendly)
+    print(f"[STARTUP] rtl_433 cmd [{radio_name} id={radio_id}]: {_format_cmd(cmd)}")
 
     # Ensure the entity exists even if no packets arrive.
     _publish_radio_status(mqtt_handler, sys_id, sys_model, status_field, "Scanning...", friendly_name=status_friendly)

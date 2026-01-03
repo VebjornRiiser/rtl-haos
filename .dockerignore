@@ -2,9 +2,24 @@
 venv/
 __pycache__/
 *.pyc
-.git/
+
+# Keep the git directory out of the image *by default*...
+.git/**
+
+# ...but include the minimal metadata needed to derive a short SHA during docker build.
+# This keeps runtime images small while enabling vX.Y.Z+<sha> display when HAOS builds from git.
+!.git/HEAD
+!.git/packed-refs
+!.git/refs/**
+!.git/shallow
+
 .gitignore
 .env
 *.md
 *.log
 .DS_Store
+tests/
+*.zip
+coverage.xml
+.coverage
+.pytest_cache/

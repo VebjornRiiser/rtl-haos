@@ -1,5 +1,37 @@
 # Changelog
 
+## v1.2.0-rc.1 (Release Candidate 1)
+
+### rtl_433 passthrough (advanced tuning & full decoder control)
+- **NEW:** Optional passthrough fields to supply arbitrary `rtl_433` flags and/or a full `rtl_433` config (`-c`):
+  - Global env: `RTL_433_ARGS`, `RTL_433_CONFIG_PATH`, `RTL_433_CONFIG_INLINE`, `RTL_433_BIN`
+  - Per-radio overrides inside `rtl_config`: `args`, `device`, `config_path`, `config_inline`, `bin`
+- **NEW:** Add-on now maps `/share` so config files can be dropped into the host share and referenced from the add-on.
+
+### Version display: keep Supervisor comparisons stable
+- **NEW:** Display version can include SemVer build metadata (e.g. `v1.2.0-rc.1+046cc83`) for logs/device info.
+  - Base add-on version in `config.yaml` follows SemVer and may include a pre-release tag (e.g. `1.2.0-rc.1`). Supervisor comparisons use this value.
+  - Build metadata can be provided via `RTL_HAOS_BUILD` (auto-populated in HAOS/local deploy via `build.txt`).
+
+### Diagnostics & field metadata
+- **NEW:** Bridge diagnostics sensor: `sys_rtl_433_version` (captures `rtl_433 -V` once at startup).
+- **NEW:** Water/utility metadata mappings for additional total fields (e.g. `total_m3`, `total_l`, `consumption_at_set_date_m3`).
+- **NEW:** Expand `field_meta` coverage for common `rtl_433` fields (battery/pressure/wind/lux/UV/air quality/power/energy + common aliases like `*_dB`, multi-probe `temperature_#_*`, `humidity_#`).
+- **CHANGED:** Home Assistant MQTT discovery publishes richer units/device_class/icons for these fields. Existing installs may need a discovery refresh (clear retained discovery topics / NUKE) to see updated metadata.
+
+### Command building & compatibility
+- **CHANGED:** `protocols` in `rtl_config` now accepts either a list or a comma/space-separated string (as commonly returned by HA add-on UI).
+- **CHANGED:** `rtl_433` command creation is centralized and always forces `-F json -M level` so RTL-HAOS can parse messages (non-JSON lines are ignored).
+- **NEW:** Startup logs print the full `rtl_433` command line per radio (`rtl_433 cmd ...`) for copy/paste troubleshooting.
+- **CHANGED:** Global passthrough (`RTL_433_ARGS` / `rtl_433_args`) now acts as a **global override**: any option present wins over per-radio settings/auto defaults, with a **WARNING per radio** and de-duplicated flags.
+
+### Tests
+- **NEW:** Unit tests for version handling and command building.
+- **NEW:** Hardware-only smoke test for passthrough flags (skipped unless `RUN_HARDWARE_TESTS=1`).
+- **NEW:** Unit tests to lock down `field_meta` mappings and verify discovery payloads use them.
+- **NEW:** Optional fixture-driven guard test that flags unmapped/publishable fields from real `rtl_433` JSON captures (skips if no fixtures are present).
+- **FIX:** Ensure `run.sh` is executable (repo health test stability).
+
 ## v1.1.14
 
 ### Utility meters: correct gas vs electric units
@@ -25,11 +57,9 @@
 - **Home Assistant discovery refresh:** if HA doesn’t immediately reflect updated unit/device_class, use the add-on “NUKE” cleanup (if provided) or clear retained discovery topics, then restart.
 - **Multiple RTL-SDR dongles with duplicate serials:** duplicates may be renamed with a suffix (`SERIAL-1`, `SERIAL-2`). If you use manual `rtl_config`, update IDs to match startup logs.
 
-
 ## v1.1.13
 - **FIX:** Home Assistant discovery for **ERT-SCM electric meters** so they no longer appear as gas meters; they now publish as **Energy (kWh)**.
 - **FIX:** **consumption readings being 100× too large** for **ERT-SCM** and **SCMplus** meters by normalizing the reported consumption value (÷100) so the sensor matches the physical meter display.
-
 
 ## v1.1.12
 - **NEW:** Auto multi-radio: starts multiple radios when multiple RTL-SDR dongles are present.
