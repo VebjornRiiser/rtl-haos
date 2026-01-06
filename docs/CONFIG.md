@@ -132,6 +132,8 @@ A few common pitfalls when using `rtl_433_args` / per-radio `args`:
 - **Be careful enabling rtl_433’s built-in MQTT output** (`-F mqtt...`). RTL-HAOS already publishes to MQTT after parsing JSON, so turning on rtl_433 MQTT output usually results in **duplicate events** (two publishers).
 - If you add additional `-F` outputs for debugging (e.g. `-F kv`, `-F csv:...`), make sure `-F json` is still present. RTL-HAOS will force JSON output for decoding.
 
+RTL-HAOS will emit `WARNING: [VALIDATE] ...` messages at startup when it detects these patterns, but it will not block startup.
+
 
 **Per-radio passthrough (adds radio-specific flags):**
 

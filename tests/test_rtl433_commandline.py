@@ -264,3 +264,72 @@ def test_rtl433_args_overrides_per_radio_settings_and_warns(monkeypatch, capsys)
     assert "warning" in out
     assert "override" in out
     assert "-s" in out
+
+
+def test_build_cmd_warns_on_immediate_exit_flags(monkeypatch, capsys):
+    """Validation should warn when users pass flags that make rtl_433 exit immediately."""
+    import config
+    import rtl_manager
+
+    monkeypatch.setattr(config, "RTL_433_ARGS", "-V")
+    radio = {
+        "index": 0,
+        "freq": "915M",
+        "rate": "250k",
+        "hop_interval": 0,
+        "name": "TestRadio",
+        "id": "301",
+        "args": "-h",
+    }
+
+    rtl_manager.build_rtl_433_command(radio)
+    out = (capsys.readouterr().out or "").lower()
+    assert "warning" in out
+    assert "-v" in out or "version" in out
+    assert "-h" in out or "help" in out
+    assert "restart" in out
+
+
+def test_build_cmd_warns_on_finite_run_flags(monkeypatch, capsys):
+    """Validation should warn when users pass flags that cause rtl_433 to stop after a limit."""
+    import config
+    import rtl_manager
+
+    monkeypatch.setattr(config, "RTL_433_ARGS", "-T 10 -n 1000")
+    radio = {
+        "index": 0,
+        "freq": "915M",
+        "rate": "250k",
+        "hop_interval": 0,
+        "name": "TestRadio",
+        "id": "302",
+    }
+
+    rtl_manager.build_rtl_433_command(radio)
+    out = (capsys.readouterr().out or "").lower()
+    assert "warning" in out
+    assert "-t" in out  # -T appears
+    assert "-n" in out
+    assert "restart" in out
+
+
+def test_build_cmd_warns_on_rtl433_mqtt_output(monkeypatch, capsys):
+    """Validation should warn when enabling rtl_433 MQTT output alongside rtl-haos publishing."""
+    import config
+    import rtl_manager
+
+    monkeypatch.setattr(config, "RTL_433_ARGS", "-F json -F mqtt://core-mosquitto:1883")
+    radio = {
+        "index": 0,
+        "freq": "915M",
+        "rate": "250k",
+        "hop_interval": 0,
+        "name": "TestRadio",
+        "id": "303",
+    }
+
+    rtl_manager.build_rtl_433_command(radio)
+    out = (capsys.readouterr().out or "").lower()
+    assert "warning" in out
+    assert "mqtt" in out
+    assert "duplicate" in out
