@@ -1,10 +1,64 @@
 # Dual-purpose Dockerfile: Home Assistant Add-on + Standalone Docker
+#
+# NOTE: We build rtl_433 from upstream git so we can enable optional SoapySDR
+# support (useful for Soapy-supported radios like HackRF, LimeSDR, PlutoSDR,
+# SoapyRemote, etc.).
 
-# ============================================================================
-# STAGE 1: Builder - Install Python dependencies with compilation support
-# ============================================================================
 ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.21
-FROM ${BUILD_FROM} as builder
+
+# ==========================================================================
+# STAGE 0: Build rtl_433 (and an optional SoapyHackRF module)
+# ==========================================================================
+FROM ${BUILD_FROM} AS rtl433_builder
+
+ARG RTL433_GIT_URL="https://github.com/merbanan/rtl_433.git"
+ARG RTL433_REF="master"
+
+# SoapyHackRF is not packaged in Alpine v3.21, so we build it from source to
+# make HackRF usable via SoapySDR.
+ARG BUILD_SOAPYHACKRF="1"
+ARG SOAPYHACKRF_GIT_URL="https://github.com/pothosware/SoapyHackRF.git"
+ARG SOAPYHACKRF_REF="master"
+
+RUN apk add --no-cache \
+    build-base \
+    cmake \
+    git \
+    pkgconf \
+    libusb-dev \
+    librtlsdr-dev \
+    soapy-sdr \
+    soapy-sdr-dev \
+    soapy-sdr-libs \
+    hackrf-dev \
+    hackrf-libs
+
+# Build and install SoapyHackRF (optional)
+RUN set -eux; \
+    if [ "${BUILD_SOAPYHACKRF}" = "1" ]; then \
+      git clone --depth 1 --branch "${SOAPYHACKRF_REF}" "${SOAPYHACKRF_GIT_URL}" /tmp/SoapyHackRF; \
+      cmake -S /tmp/SoapyHackRF -B /tmp/SoapyHackRF/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr; \
+      cmake --build /tmp/SoapyHackRF/build -j"$(nproc)"; \
+      cmake --install /tmp/SoapyHackRF/build; \
+      rm -rf /tmp/SoapyHackRF; \
+    fi
+
+# Build and install rtl_433 with Soapy enabled
+RUN set -eux; \
+    git clone --depth 1 --branch "${RTL433_REF}" "${RTL433_GIT_URL}" /tmp/rtl_433; \
+    cmake -S /tmp/rtl_433 -B /tmp/rtl_433/build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr \
+      -DENABLE_SOAPYSDR=ON; \
+    cmake --build /tmp/rtl_433/build -j"$(nproc)"; \
+    cmake --install /tmp/rtl_433/build; \
+    strip /usr/bin/rtl_433 || true; \
+    rm -rf /tmp/rtl_433
+
+# ==========================================================================
+# STAGE 1: Builder - Install Python dependencies with compilation support
+# ==========================================================================
+FROM ${BUILD_FROM} AS builder
 
 # Install build dependencies needed for compiling Python packages
 RUN apk add --no-cache \
@@ -22,44 +76,22 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-
-# ============================================================================
-# STAGE 2: rtl_433 builder - build rtl_433 from upstream git
-# ============================================================================
-FROM ${BUILD_FROM} as rtl433_builder
-
-# Set this to a tag/branch/commit SHA you want, e.g. "master", "25.02", or a full SHA.
-ARG RTL433_GIT_REF=master
-
-RUN apk add --no-cache \
-    git \
-    build-base \
-    cmake \
-    pkgconf \
-    libusb-dev \
-    librtlsdr-dev
-
-WORKDIR /tmp
-
-RUN git clone https://github.com/merbanan/rtl_433.git /tmp/rtl_433 \
-    && cd /tmp/rtl_433 \
-    && git checkout "${RTL433_GIT_REF}" \
-    && cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
-    && cmake --build build \
-    && DESTDIR=/tmp/rtl433-install cmake --install build
-
-# ============================================================================
-# STAGE 3: Runtime - Slim final image
-# ============================================================================
+# ==========================================================================
+# STAGE 2: Runtime - Slim final image
+# ==========================================================================
 FROM ${BUILD_FROM}
 
-# Install only runtime dependencies (NOTE: no rtl_433 apk package)
+# Runtime dependencies needed by rtl_433 + SoapySDR + USB access
 RUN apk add --no-cache \
     rtl-sdr \
-    libusb
+    libusb \
+    soapy-sdr \
+    soapy-sdr-libs \
+    hackrf-libs
 
-# Copy rtl_433 binary built from git
-COPY --from=rtl433_builder /tmp/rtl433-install/usr/bin/rtl_433 /usr/bin/rtl_433
+# Copy rtl_433 (and any Soapy modules we built) from the build stage
+COPY --from=rtl433_builder /usr/bin/rtl_433 /usr/bin/rtl_433
+COPY --from=rtl433_builder /usr/lib/SoapySDR /usr/lib/SoapySDR
 
 WORKDIR /app
 
