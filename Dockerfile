@@ -45,7 +45,7 @@ RUN set -eux; \
 
 # Build and install rtl_433 with Soapy enabled
 RUN set -eux; \
-    git clone --depth 1 --branch "${RTL433_REF}" "${RTL433_GIT_URL}" /tmp/rtl_433; \
+    git clone --branch "${RTL433_REF}" "${RTL433_GIT_URL}" /tmp/rtl_433; \
     cmake -S /tmp/rtl_433 -B /tmp/rtl_433/build \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_INSTALL_PREFIX=/usr \
