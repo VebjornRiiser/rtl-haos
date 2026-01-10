@@ -1,6 +1,6 @@
 name: "RTL-HAOS"
 description: "RTL-SDR to Home Assistant MQTT bridge with signal diagnostics and system monitoring"
-version: "1.2.3"
+version: "1.2.4"
 slug: rtl-haos
 url: "https://github.com/jaronmcd/rtl-haos"
 arch:
@@ -35,6 +35,34 @@ options:
   device_id_strategy: "model_id_channel"
   device_id_template: "m{model}i{id}c{channel}"
   verbose_transmissions: false  # Log every single MQTT publish
+
+  # --- Publishing profile (UI clutter control) ---
+  # full     : publish all fields as entities (legacy behavior)
+  # balanced : publish main sensors + a small set of useful diagnostics
+  # minimal  : publish main sensors + battery, route everything else into a per-device Details sensor (attributes)
+  field_profile: "minimal"
+
+  # --- Details sensor (attributes) ---
+  details_enabled: true
+  details_publish_interval: 30
+  details_max_keys: 40
+  details_value_maxlen: 160
+  # Keys to always include in Details when present (even if not published as entities)
+  details_include_keys:
+    - protocol
+    - mod
+    - freq
+    - rssi
+    - snr
+    - noise
+    - mic
+
+  # Optional: rename device display names without changing entity IDs
+  device_aliases: []
+
+  # --- Support capture (writes JSONL to /share) ---
+  capture_seconds: 30
+  capture_dir: /share/rtl-haos/captures
 
   # Advanced: pass through extra rtl_433 flags and/or a config file.
   # rtl_433_args acts as a GLOBAL OVERRIDE: if it includes an option that is also
@@ -101,6 +129,22 @@ schema:
   device_id_strategy: list(legacy|model_id|model_id_channel|template)
   device_id_template: str
   verbose_transmissions: bool
+
+  # Publishing profile + details aggregation
+  field_profile: list(full|balanced|minimal)
+  details_enabled: bool
+  details_publish_interval: int
+  details_max_keys: int
+  details_value_maxlen: int
+  details_include_keys:
+    - str
+
+  device_aliases:
+    - match: str
+      name: str
+
+  capture_seconds: int
+  capture_dir: str
 
   # Advanced rtl_433 passthrough
   rtl_433_args: str?

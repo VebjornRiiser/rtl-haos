@@ -35,7 +35,7 @@ from datetime import datetime
 from typing import Optional
 
 import config
-from utils import clean_mac, calculate_dew_point, make_device_key, make_device_display_name
+from utils import clean_mac, calculate_dew_point, make_device_key, make_device_display_name, apply_device_alias
 
 # --- Process Tracking ---
 ACTIVE_PROCESSES = []
@@ -901,6 +901,18 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
                 try:
                     data = json.loads(raw)
 
+                    # Support capture: if enabled, write the raw JSON line to /share.
+                    try:
+                        mqtt_handler.capture_line(raw)
+                    except Exception:
+                        pass
+
+                    # Track protocol IDs for '-R ...' hinting (best effort).
+                    try:
+                        mqtt_handler.observe_protocol(data.get("protocol"))
+                    except Exception:
+                        pass
+
                     data_raw = None
                     if getattr(config, "DEBUG_RAW_JSON", False):
                         try:
@@ -969,6 +981,8 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
 
                     clean_id = clean_mac(raw_key)
                     dev_name = make_device_display_name(data, model=model, clean_id=clean_id)
+                    # Optional display-only aliases (never changes unique IDs)
+                    dev_name = apply_device_alias(dev_name, clean_id, model=model)
                     dev_type = data.get("type", "Untyped")
 
                     if is_blocked_device(clean_id, model, dev_type):
@@ -1019,23 +1033,105 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
                         )
 
                     flat = flatten(data)
+
+                    profile = str(getattr(config, "FIELD_PROFILE", "full") or "full").strip().lower()
+                    main_sensors = set(getattr(config, "MAIN_SENSORS", []) or [])
+                    skip_keys = set(getattr(config, "SKIP_KEYS", []) or [])
+
+                    # Always publish a small set of high-value fields even in minimal mode.
+                    always_publish = {
+                        "battery_ok",
+                        "meter_reading",
+                        "Consumption",
+                        "consumption",
+                        "consumption_data",
+                    }
+                    balanced_extra = {
+                        "rssi",
+                        "snr",
+                        "noise",
+                        "freq",
+                        "mod",
+                        "mic",
+                        "state",
+                        "button",
+                        "code",
+                    }
+
+                    def _should_publish(field_name: str) -> bool:
+                        if profile == "full":
+                            return True
+                        # Keep battery-related fields as first-class entities even in minimal mode.
+                        if field_name.startswith("battery"):
+                            return True
+                        if field_name in always_publish:
+                            return True
+                        if field_name in main_sensors:
+                            return True
+                        if profile == "balanced" and field_name in balanced_extra:
+                            return True
+                        return False
+
+                    # Build per-device "Details" attributes so we can keep the UI clean without losing data.
+                    details = {}
+                    if getattr(config, "DETAILS_ENABLED", False):
+                        # Include identity/time and any include keys even if skipped.
+                        try:
+                            details["id"] = data.get("id")
+                            if "channel" in data:
+                                details["channel"] = data.get("channel")
+                            if "type" in data:
+                                details["type"] = data.get("type")
+                            if "subtype" in data:
+                                details["subtype"] = data.get("subtype")
+                            if "time" in data:
+                                details["time"] = data.get("time")
+                        except Exception:
+                            pass
+                        include_keys = set(getattr(config, "DETAILS_INCLUDE_KEYS", []) or [])
+                        for k in include_keys:
+                            if k in flat:
+                                details[k] = flat.get(k)
+
                     for key, value in flat.items():
-                        if key in getattr(config, "SKIP_KEYS", []):
+                        if key in skip_keys:
+                            # Typically internal/meta fields. These can still flow into Details via include_keys.
                             continue
 
+                        out_key = key
+                        out_value = value
+
+                        # Normalize temperature keys into a single 'temperature' entity (Fahrenheit)
                         if key in ["temperature_C", "temp_C"] and isinstance(value, (int, float)):
-                            val_f = round(value * 1.8 + 32.0, 1)
-                            data_processor.dispatch_reading(
-                                clean_id, "temperature", val_f, dev_name, model, radio_name=radio_name, radio_freq=freq_display
-                            )
+                            out_key = "temperature"
+                            out_value = round(value * 1.8 + 32.0, 1)
                         elif key in ["temperature_F", "temp_F", "temperature"] and isinstance(value, (int, float)):
+                            out_key = "temperature"
+                            out_value = value
+
+                        if _should_publish(out_key):
                             data_processor.dispatch_reading(
-                                clean_id, "temperature", value, dev_name, model, radio_name=radio_name, radio_freq=freq_display
+                                clean_id,
+                                out_key,
+                                out_value,
+                                dev_name,
+                                model,
+                                radio_name=radio_name,
+                                radio_freq=freq_display,
                             )
                         else:
-                            data_processor.dispatch_reading(
-                                clean_id, key, value, dev_name, model, radio_name=radio_name, radio_freq=freq_display
-                            )
+                            if getattr(config, "DETAILS_ENABLED", False):
+                                # Only store non-published fields in Details to avoid duplication.
+                                details[out_key] = out_value
+
+                    if getattr(config, "DETAILS_ENABLED", False):
+                        mqtt_handler.update_details(
+                            clean_id,
+                            dev_name,
+                            model,
+                            details,
+                            timestamp=str(data.get("time") or "") or None,
+                        )
 
                 except json.JSONDecodeError:
                     # Logs/errors from rtl_433 / librtlsdr

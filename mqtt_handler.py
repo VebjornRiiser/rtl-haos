@@ -9,6 +9,8 @@ import json
 import threading
 import sys
 import time
+import os
+from datetime import datetime
 # MQTT client (optional during unit tests)
 try:
     import paho.mqtt.client as mqtt
@@ -181,6 +183,22 @@ class HomeNodeMQTT:
         # Key: unique_id_with_suffix -> signature tuple
         self._discovery_sig = {}
 
+        # --- Details aggregation (per-device attributes, used in minimal/balanced profiles) ---
+        self._details_lock = threading.Lock()
+        # clean_id -> {"attrs": {...}, "last_publish": float, "last_seen": float}
+        self._details_cache: dict[str, dict] = {}
+
+        # --- Protocol tracking (for recommended '-R ...' hints) ---
+        self._protocols_lock = threading.Lock()
+        self._protocols_seen: set[int] = set()
+
+        # --- Support capture (writes raw rtl_433 JSONL to /share) ---
+        self._capture_lock = threading.Lock()
+        self._capture_active_until: float = 0.0
+        self._capture_fp = None
+        self._capture_path: str | None = None
+        self._capture_last_error: str | None = None
+
 
         # --- Nuke Logic Variables ---
         self.nuke_counter = 0
@@ -276,10 +294,15 @@ class HomeNodeMQTT:
             # 2. Subscribe to Restart Command
             self.restart_command_topic = f"home/status/rtl_bridge{config.ID_SUFFIX}/restart/set"
             c.subscribe(self.restart_command_topic)
+
+            # 3. Subscribe to Support Capture Command
+            self.capture_command_topic = f"home/status/rtl_bridge{config.ID_SUFFIX}/capture/set"
+            c.subscribe(self.capture_command_topic)
             
-            # 3. Publish Buttons
+            # 4. Publish Buttons
             self._publish_nuke_button()
             self._publish_restart_button()
+            self._publish_capture_button()
         else:
             print(f"[MQTT] Connection Failed! Code: {rc}")
 
@@ -296,7 +319,12 @@ class HomeNodeMQTT:
                 trigger_radio_restart()
                 return
 
-            # 3. Handle Nuke Scanning (Search & Destroy)
+            # 3. Handle Capture Button Press
+            if hasattr(self, "capture_command_topic") and msg.topic == self.capture_command_topic:
+                self.start_capture()
+                return
+
+            # 4. Handle Nuke Scanning (Search & Destroy)
             if self.is_nuking:
                 if not msg.payload: return
 
@@ -312,6 +340,7 @@ class HomeNodeMQTT:
                         # SAFETY: Don't delete the buttons!
                         if "nuke" in msg.topic or "rtl_bridge_nuke" in str(msg.topic): return
                         if "restart" in msg.topic or "rtl_bridge_restart" in str(msg.topic): return
+                        if "capture" in msg.topic or "rtl_bridge_capture" in str(msg.topic): return
 
                         print(f"[NUKE] FOUND & DELETING: {msg.topic}")
                         self.client.publish(msg.topic, "", retain=True)
@@ -369,6 +398,36 @@ class HomeNodeMQTT:
         config_topic = f"homeassistant/button/{unique_id}/config"
         self.client.publish(config_topic, json.dumps(payload), retain=True)
 
+    def _publish_capture_button(self):
+        """Creates the 'Support Capture' button.
+
+        When pressed, RTL-HAOS writes raw rtl_433 JSON lines (JSONL) to /share so the
+        developer can inspect exactly what rtl_433 is producing.
+        """
+        sys_id = get_system_mac().replace(":", "").lower()
+        unique_id = f"rtl_bridge_capture{config.ID_SUFFIX}"
+
+        seconds = int(getattr(config, "CAPTURE_SECONDS", 30) or 30)
+
+        payload = {
+            "name": f"Support Capture ({seconds}s)",
+            "command_topic": self.capture_command_topic,
+            "unique_id": unique_id,
+            "icon": "mdi:record-circle-outline",
+            "entity_category": "config",
+            "device": {
+                "identifiers": [f"rtl433_{config.BRIDGE_NAME}_{sys_id}"],
+                "manufacturer": "rtl-haos",
+                "model": config.BRIDGE_NAME,
+                "name": f"{config.BRIDGE_NAME} ({sys_id})",
+                "sw_version": self.sw_version,
+            },
+            "availability_topic": self.TOPIC_AVAILABILITY,
+        }
+
+        config_topic = f"homeassistant/button/{unique_id}/config"
+        self.client.publish(config_topic, json.dumps(payload), retain=True)
+
     def _handle_nuke_press(self):
         """Counts presses and triggers Nuke if threshold met."""
         now = time.time()
@@ -412,7 +471,255 @@ class HomeNodeMQTT:
         self.client.publish(self.TOPIC_AVAILABILITY, "online", retain=True)
         self._publish_nuke_button()
         self._publish_restart_button()
+        self._publish_capture_button()
         print("[NUKE] Host Entities restored.")
+
+    # --- Protocol tracking ---
+
+    def observe_protocol(self, value) -> None:
+        """Record protocol IDs seen in rtl_433 output (best effort).
+
+        Some rtl_433 builds include a numeric 'protocol' field when using '-M protocol'.
+        We store these so the bridge can surface a recommended '-R ...' filter.
+        """
+        if value is None:
+            return
+        try:
+            p = int(str(value).strip())
+        except Exception:
+            return
+        if p <= 0:
+            return
+        with self._protocols_lock:
+            self._protocols_seen.add(p)
+
+    def get_protocols_seen(self) -> list[int]:
+        with self._protocols_lock:
+            return sorted(self._protocols_seen)
+
+    def get_protocols_hint(self, max_protocols: int = 40) -> str:
+        protos = self.get_protocols_seen()
+        if not protos:
+            return "No protocol IDs seen yet"
+        shown = protos[:max_protocols]
+        s = ",".join(str(p) for p in shown)
+        if len(protos) > max_protocols:
+            s = s + ",..."
+        return f"-R {s}"
+
+    # --- Support capture (raw JSONL) ---
+
+    def start_capture(self, seconds: int | None = None) -> None:
+        """Begin a timed capture of raw rtl_433 JSON lines to a file under /share."""
+        sec_cfg = int(getattr(config, "CAPTURE_SECONDS", 30) or 30)
+        seconds = int(seconds or sec_cfg)
+        if seconds <= 0:
+            seconds = sec_cfg
+        # Safety cap: keep captures short by default to avoid filling /share.
+        if seconds > 600:
+            seconds = 600
+
+        cap_dir = str(getattr(config, "CAPTURE_DIR", "/share/rtl-haos/captures") or "/share/rtl-haos/captures")
+        os.makedirs(cap_dir, exist_ok=True)
+
+        ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        sys_id = get_system_mac().replace(":", "").lower()
+        filename = f"rtl_433_capture_{sys_id}_{ts}.jsonl"
+        path = os.path.join(cap_dir, filename)
+
+        with self._capture_lock:
+            # Stop any existing capture first
+            self._capture_close_locked()
+            try:
+                self._capture_fp = open(path, "a", encoding="utf-8")
+                self._capture_path = path
+                self._capture_last_error = None
+                self._capture_active_until = time.time() + seconds
+            except Exception as e:
+                self._capture_fp = None
+                self._capture_path = None
+                self._capture_last_error = f"{type(e).__name__}: {e}"
+                self._capture_active_until = 0.0
+                print(f"[CAPTURE] Failed to start capture: {self._capture_last_error}")
+                return
+
+        print(f"[CAPTURE] Started ({seconds}s): {path}")
+        threading.Timer(seconds + 1, self.stop_capture).start()
+
+    def _capture_close_locked(self):
+        """Close capture file (lock must already be held)."""
+        if self._capture_fp is not None:
+            try:
+                self._capture_fp.flush()
+            except Exception:
+                pass
+            try:
+                self._capture_fp.close()
+            except Exception:
+                pass
+        self._capture_fp = None
+        self._capture_active_until = 0.0
+
+    def stop_capture(self) -> None:
+        with self._capture_lock:
+            if self._capture_fp is None:
+                return
+            path = self._capture_path
+            self._capture_close_locked()
+            self._capture_path = path
+        print(f"[CAPTURE] Completed: {path}")
+
+    def capture_line(self, raw_line: str) -> None:
+        """Write a single JSON line to the capture file if capture is active."""
+        if not raw_line:
+            return
+        now = time.time()
+        with self._capture_lock:
+            if self._capture_fp is None:
+                return
+            if now > (self._capture_active_until or 0.0):
+                # Auto-stop if the timer didn't fire yet.
+                self._capture_close_locked()
+                return
+            try:
+                self._capture_fp.write(raw_line.rstrip("\n") + "\n")
+            except Exception as e:
+                self._capture_last_error = f"{type(e).__name__}: {e}"
+                try:
+                    self._capture_close_locked()
+                except Exception:
+                    pass
+
+    def get_capture_status(self) -> str:
+        with self._capture_lock:
+            if self._capture_fp is None:
+                if self._capture_last_error:
+                    return f"idle (error: {self._capture_last_error})"
+                return "idle"
+            remaining = max(0, int((self._capture_active_until or 0.0) - time.time()))
+            path = self._capture_path or ""
+        base = os.path.basename(path) if path else ""
+        return f"capturing ({remaining}s) {base}"
+
+    # --- Details sensor ---
+
+    def update_details(self, clean_id: str, device_name: str, device_model: str, attrs: dict, *, timestamp: str | None = None) -> None:
+        """Merge attributes into a per-device Details sensor and publish on an interval."""
+        if not getattr(config, "DETAILS_ENABLED", False):
+            return
+
+        if not isinstance(attrs, dict) or not attrs:
+            attrs = {}
+
+        # Always track devices even if we're not publishing field entities.
+        try:
+            self.tracked_devices.add(clean_id)
+        except Exception:
+            pass
+
+        now = time.time()
+        interval = int(getattr(config, "DETAILS_PUBLISH_INTERVAL", 30) or 30)
+        max_keys = int(getattr(config, "DETAILS_MAX_KEYS", 40) or 40)
+        v_max = int(getattr(config, "DETAILS_VALUE_MAXLEN", 160) or 160)
+        include_keys = set(getattr(config, "DETAILS_INCLUDE_KEYS", []) or [])
+
+        # Normalize attribute values for JSON serialization and cap string sizes.
+        def _norm(v):
+            if isinstance(v, (int, float, bool)) or v is None:
+                return v
+            # Flatten bytes, dicts, lists -> json string (bounded)
+            if isinstance(v, (dict, list, tuple)):
+                try:
+                    s = json.dumps(v, ensure_ascii=False)
+                except Exception:
+                    s = str(v)
+                return s[:v_max] if len(s) > v_max else s
+            s = str(v)
+            return s[:v_max] if len(s) > v_max else s
+
+        with self._details_lock:
+            entry = self._details_cache.get(clean_id)
+            if entry is None:
+                entry = {"attrs": {}, "last_publish": 0.0, "last_seen": 0.0}
+                self._details_cache[clean_id] = entry
+
+            entry["last_seen"] = now
+
+            # Merge attrs
+            a = entry.get("attrs") or {}
+            for k, v in attrs.items():
+                if k is None:
+                    continue
+                ks = str(k)
+                a[ks] = _norm(v)
+
+            # Always include last_seen and core identity fields.
+            a["last_seen"] = timestamp or datetime.utcnow().isoformat(timespec="seconds") + "Z"
+            a["model"] = str(device_model or "")
+            a["device"] = str(device_name or "")
+
+            # Apply max key constraint while keeping include_keys stable.
+            if max_keys > 0 and len(a) > max_keys:
+                # Keep include_keys + a few core keys, then add others in alpha order.
+                core = {"last_seen", "model", "device"} | include_keys
+                kept = {k: a[k] for k in list(a.keys()) if k in core and k in a}
+                remaining_keys = [k for k in sorted(a.keys()) if k not in kept]
+                for k in remaining_keys:
+                    if len(kept) >= max_keys:
+                        break
+                    kept[k] = a[k]
+                entry["attrs"] = kept
+            else:
+                entry["attrs"] = a
+
+            should_publish = (entry.get("last_publish") or 0.0) == 0.0 or (now - float(entry.get("last_publish") or 0.0)) >= interval
+            if should_publish:
+                entry["last_publish"] = now
+                payload_attrs = dict(entry["attrs"])  # shallow copy
+            else:
+                payload_attrs = None
+
+        if payload_attrs is not None:
+            self._publish_details_entity(clean_id, device_name, device_model, payload_attrs)
+
+    def _publish_details_entity(self, clean_id: str, device_name: str, device_model: str, attrs: dict) -> None:
+        """Publish MQTT discovery + state/attributes for the per-device Details sensor."""
+        unique_id = f"{clean_id}_details{config.ID_SUFFIX}"
+        state_topic = f"home/rtl_devices/{clean_id}/details"
+        attr_topic = f"home/rtl_devices/{clean_id}/details_attr"
+
+        # Discovery
+        payload = {
+            "name": "Details",
+            "state_topic": state_topic,
+            "json_attributes_topic": attr_topic,
+            "unique_id": unique_id,
+            "icon": "mdi:information-outline",
+            "entity_category": "diagnostic",
+            "device": {
+                "identifiers": [clean_id],
+                "manufacturer": "rtl-haos",
+                "model": device_model,
+                "name": device_name,
+            },
+            "availability_topic": self.TOPIC_AVAILABILITY,
+            # Keep it from expiring too aggressively; we still update last_seen in attrs.
+            "expire_after": int(getattr(config, "RTL_EXPIRE_AFTER", 0) or 0) or 0,
+        }
+
+        config_topic = f"homeassistant/sensor/{unique_id}/config"
+        with self.discovery_lock:
+            if config_topic not in self.discovery_published:
+                self.client.publish(config_topic, json.dumps(payload), retain=True)
+                self.discovery_published.add(config_topic)
+
+        # Publish attributes and a simple state
+        try:
+            self.client.publish(attr_topic, json.dumps(attrs, ensure_ascii=False), retain=True)
+        except Exception:
+            # Fallback: stringify
+            self.client.publish(attr_topic, json.dumps({"error": "attrs serialization failed"}), retain=True)
+        self.client.publish(state_topic, "ok", retain=True)
 
     def start(self):
         print(f"[STARTUP] Connecting to MQTT Broker at {config.MQTT_SETTINGS['host']}...")

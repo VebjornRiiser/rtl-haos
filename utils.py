@@ -400,3 +400,55 @@ def make_device_display_name(
         return f"{model_s} {suffix} ch{chan}"
 
     return f"{model_s} {suffix}"
+
+
+def apply_device_alias(device_name: str, clean_id: str, model: str | None = None) -> str:
+    """Apply optional user-configured aliases to a device display name.
+
+    This is intentionally display-only: it NEVER changes the internal device key
+    or entity unique_id, so upgrades remain stable.
+
+    Aliases are matched using fnmatch-style globs against several strings:
+      - the current display name (device_name)
+      - the internal clean_id
+      - a convenience string like "<model> <id>" derived from device_name/model
+
+    Config format (config.yaml options / .env JSON):
+      device_aliases:
+        - match: "Acurite-5n1 3554*"
+          name: "Backyard Weather"
+    """
+    try:
+        aliases = getattr(config, "DEVICE_ALIASES", None) or []
+    except Exception:
+        aliases = []
+
+    if not aliases:
+        return device_name
+
+    dn = str(device_name or "").strip()
+    cid = str(clean_id or "").strip()
+    m = str(model or "").strip()
+
+    # Candidate strings to match
+    candidates = {dn, cid}
+    if m:
+        candidates.add(m)
+        # Often device_name is "<Model> <id>" already, but include a raw form anyway.
+        candidates.add(f"{m} {cid}")
+
+    import fnmatch
+
+    for rule in aliases:
+        if not isinstance(rule, dict):
+            continue
+        pat = str(rule.get("match") or "").strip()
+        new_name = str(rule.get("name") or "").strip()
+        if not pat or not new_name:
+            continue
+
+        for c in candidates:
+            if c and fnmatch.fnmatchcase(c, pat):
+                return new_name
+
+    return device_name

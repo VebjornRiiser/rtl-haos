@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.2.4
+
+### UI clutter control (profiles + Details)
+- **NEW:** `field_profile` option controls which rtl_433 fields become Home Assistant entities:
+  - `full` (legacy): publish all fields (except configured skip keys)
+  - `balanced`: publish `MAIN_SENSORS` + a small set of RF diagnostics
+  - `minimal`: publish `MAIN_SENSORS` + `battery_ok`; route everything else into Details
+- **NEW:** Optional per-device **Details** sensor (diagnostic) that stores non-published fields as attributes (rate-limited, capped).
+- **NEW:** `device_aliases` lets you rename devices in Home Assistant without changing unique IDs.
+
+### Support capture + protocol hint
+- **NEW:** Bridge button **Support Capture** writes raw rtl_433 JSON lines (JSONL) to `/share/rtl-haos/captures` for troubleshooting.
+- **NEW:** Bridge diagnostics: `sys_protocols_seen`, `sys_protocols_hint` and `sys_capture_status`.
+
+### Upgrade safety
+- Existing installs are unchanged unless you opt into the new options (defaults remain `field_profile: full` + no Details sensor).
+
 ## v1.2.3
 
 ### RTL_433 integration improvements (safe defaults)

@@ -170,6 +170,43 @@ class Settings(BaseSettings):
         description="If True, logs every MQTT publish. If False, only logs summaries.",
     )
 
+    # --- Publishing profiles (UI clutter control) ---
+    # full     : publish all fields as entities (legacy behavior)
+    # balanced : publish main sensors + a small set of useful diagnostics
+    # minimal  : publish main sensors + battery, route everything else into a per-device Details sensor (attributes)
+    field_profile: str = Field(
+        default="full",
+        description="Controls how many rtl_433 fields are published as Home Assistant entities.",
+    )
+
+    # Details sensor behavior (used primarily for field_profile=minimal/balanced)
+    # Default False to avoid surprising existing installs that upgrade without adding new options.
+    details_enabled: bool = Field(default=False)
+    details_publish_interval: int = Field(
+        default=30,
+        description="Minimum seconds between Details attribute publishes per device.",
+    )
+    details_max_keys: int = Field(
+        default=40,
+        description="Max number of attributes to include in Details payload.",
+    )
+    details_value_maxlen: int = Field(
+        default=160,
+        description="Max string length for Details attribute values.",
+    )
+    details_include_keys: list[str] = Field(
+        default_factory=lambda: ["protocol", "mod", "freq", "rssi", "snr", "noise", "mic"],
+        description="Keys to always include in Details when present.",
+    )
+
+    # Optional: allow users to rename devices without changing unique IDs.
+    # Format: [{"match": "Acurite-5n1 3554*", "name": "Backyard Weather"}, ...]
+    device_aliases: list[dict] = Field(default_factory=list)
+
+    # Capture raw rtl_433 JSON to /share for support/debug.
+    capture_seconds: int = Field(default=30)
+    capture_dir: str = Field(default="/share/rtl-haos/captures")
+
     # --- Device filtering ---
     skip_keys: list[str] = Field(default_factory=lambda: ["time", "protocol", "mod", "id"])
     device_blacklist: list[str] = Field(default_factory=lambda: ["SimpliSafe*", "EezTire*"])
@@ -299,6 +336,17 @@ DEVICE_ID_TEMPLATE = settings.device_id_template
 
 
 VERBOSE_TRANSMISSIONS = settings.verbose_transmissions
+
+# Publishing profile + details/capture settings
+FIELD_PROFILE = settings.field_profile
+DETAILS_ENABLED = settings.details_enabled
+DETAILS_PUBLISH_INTERVAL = settings.details_publish_interval
+DETAILS_MAX_KEYS = settings.details_max_keys
+DETAILS_VALUE_MAXLEN = settings.details_value_maxlen
+DETAILS_INCLUDE_KEYS = settings.details_include_keys
+DEVICE_ALIASES = settings.device_aliases
+CAPTURE_SECONDS = settings.capture_seconds
+CAPTURE_DIR = settings.capture_dir
 
 # Battery behavior
 BATTERY_OK_CLEAR_AFTER = settings.battery_ok_clear_after

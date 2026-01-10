@@ -190,6 +190,65 @@ Available template fields: `model`, `id`, `channel`, `subtype`, `protocol`, `typ
 
 > **Important:** Changing `device_id_strategy` changes the Home Assistant device id and therefore will create **new devices/entities** (the old ones won't automatically migrate).
 
+---
+
+## UI clutter control (field profiles + Details sensor)
+
+rtl_433 can output a lot of fields. RTL-HAOS can publish those fields as Home Assistant entities, or keep the UI cleaner by routing non-essential fields into a per-device **Details** sensor (attributes).
+
+```yaml
+# full     : publish all fields as entities (legacy behavior)
+# balanced : publish MAIN_SENSORS + a small set of useful RF diagnostics
+# minimal  : publish MAIN_SENSORS + battery_ok; route everything else into Details
+field_profile: minimal
+
+# Enables one per-device diagnostic sensor called "Details" with JSON attributes.
+details_enabled: true
+details_publish_interval: 30  # seconds
+details_max_keys: 40          # cap attribute count to keep payloads reasonable
+
+# Keys to always keep in Details attributes (even if otherwise skipped)
+details_include_keys:
+  - protocol
+  - mod
+  - freq
+  - rssi
+  - snr
+  - noise
+  - mic
+```
+
+Notes:
+- Existing installs are upgrade-safe: if you do **not** add these options, RTL-HAOS stays in `field_profile: full` behavior.
+- `battery_ok` remains an entity (it becomes a "Battery Low" binary sensor) even in `minimal` mode.
+
+### Device aliases (friendly names)
+
+You can optionally replace the display name for specific devices without changing entity unique IDs.
+
+```yaml
+device_aliases:
+  - match: "Acurite-5n1*"   # wildcard match against device display name
+    name: "Backyard Weather"
+  - match: "ERT-SCM*"      # example: utility meter
+    name: "Electric Meter"
+```
+
+---
+
+## Support capture (raw rtl_433 JSONL)
+
+If you need to debug a device decoder, RTL-HAOS exposes a **Support Capture** button on the bridge device. Pressing it writes raw rtl_433 JSON lines to `/share` so you can attach them to an issue or inspect exactly what rtl_433 is producing.
+
+```yaml
+capture_seconds: 30
+capture_dir: /share/rtl-haos/captures
+```
+
+The bridge also publishes:
+- `sys_protocols_seen` and `sys_protocols_hint` (helps build a `-R ...` decoder filter)
+- `sys_capture_status` (idle/capturing)
+
 ### rtl_433 metadata options
 
 RTL-HAOS enforces `-F json` and adds some metadata flags for convenience:

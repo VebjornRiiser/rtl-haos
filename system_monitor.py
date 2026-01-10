@@ -114,6 +114,36 @@ def system_stats_loop(mqtt_handler, DEVICE_ID, MODEL_NAME):
 
             mqtt_handler.send_sensor(DEVICE_ID, "sys_device_count", count, device_name, MODEL_NAME, is_rtl=True)
             mqtt_handler.send_sensor(DEVICE_ID, "sys_rtl_433_version", rtl_433_version, device_name, MODEL_NAME, is_rtl=True)
+
+            # Helpful diagnostics for tightening rtl_433 integration
+            try:
+                protos = mqtt_handler.get_protocols_seen()
+                mqtt_handler.send_sensor(
+                    DEVICE_ID,
+                    "sys_protocols_seen",
+                    ",".join(str(p) for p in protos) if protos else "",
+                    device_name,
+                    MODEL_NAME,
+                    is_rtl=True,
+                )
+                mqtt_handler.send_sensor(
+                    DEVICE_ID,
+                    "sys_protocols_hint",
+                    mqtt_handler.get_protocols_hint(),
+                    device_name,
+                    MODEL_NAME,
+                    is_rtl=True,
+                )
+                mqtt_handler.send_sensor(
+                    DEVICE_ID,
+                    "sys_capture_status",
+                    mqtt_handler.get_capture_status(),
+                    device_name,
+                    MODEL_NAME,
+                    is_rtl=True,
+                )
+            except Exception:
+                pass
             # mqtt_handler.send_sensor(DEVICE_ID, "sys_device_list", dev_list_str, device_name, MODEL_NAME, is_rtl=True)
 
             # B. Configuration Lists (Sent as Diagnostics)
