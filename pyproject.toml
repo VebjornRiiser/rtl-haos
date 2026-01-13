@@ -67,3 +67,22 @@ omit = [
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# This repo is a flat layout of top-level modules; avoid automatic package discovery
+py-modules = [
+  "config",
+  "data_processor",
+  "field_meta",
+  "main",
+  "mqtt_handler",
+  "rtl_manager",
+  "sensors_system",
+  "system_monitor",
+  "utils",
+  "version_utils",
+]
