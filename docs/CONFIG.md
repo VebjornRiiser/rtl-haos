@@ -140,7 +140,15 @@ Notes:
 
 ### Device filtering
 
-You can suppress unwanted devices using wildcard patterns (`*`).
+You can suppress unwanted devices using wildcard patterns.
+
+- Patterns use shell-style glob matching (`fnmatch`): `*`, `?`, and `[]`.
+- Matching is case-insensitive.
+- Patterns are matched against the decoded device’s `id`, `model`, and `type` fields.
+
+Rules:
+- `device_blacklist` always blocks matching devices.
+- If `device_whitelist` is non-empty, only matching devices are allowed.
 
 ```yaml
 device_blacklist:
@@ -150,6 +158,8 @@ device_blacklist:
 device_whitelist: []  # if set non-empty, only matching devices are allowed
 # device_whitelist:
 #   - "Acurite-5n1*"
+#   - "AmbientWeather*"
+
 ```
 
 ---
