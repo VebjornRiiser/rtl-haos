@@ -406,6 +406,9 @@ Once you have set up your configuration, you can run rtl-haos with Docker.
 docker compose up -d
 ```
 
+> **Docker Compose note (USB vs rtl_tcp):** The provided `docker-compose.yml` is configured for **rtl_tcp / network SDR** mode by default and does **not** mount USB devices.
+> If you are using a locally attached USB RTL-SDR, uncomment `privileged: true` and the `/dev/bus/usb` device mapping in `docker-compose.yml`.
+
 #### Or run with Docker directly
 
 ```bash

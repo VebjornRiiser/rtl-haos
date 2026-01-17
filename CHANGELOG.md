@@ -7,6 +7,7 @@
 - **FIX:** Reduce misleading config warnings for `rtl_tcp`/explicit `device` radios; harden hop interval parsing so invalid values do not break startup.
 - **NEW:** Add-on schema now accepts `tcp_host`/`tcp_port` inside `rtl_config` (optional alternative to `device: rtl_tcp:...`).
 - **DOCS:** Refresh `docs/CONFIG.md` to match current add-on options and `rtl_tcp` usage.
+- **DOCS:** Clarify that `docker-compose.yml` defaults to **rtl_tcp/network SDR** (USB passthrough is opt-in via `privileged` + `/dev/bus/usb`).
 
 ## v1.2.0-rc.1 (Release Candidate 1)
 
