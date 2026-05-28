@@ -696,3 +696,70 @@ class HomeNodeMQTT:
                 # --- NEW: Check Verbosity Setting ---
                 if config.VERBOSE_TRANSMISSIONS:
                     print(f" -> TX {device_name} [{field}]: {out_value}")
+
+    def send_health_alert(
+        self,
+        sensor_id: str,
+        is_problem: bool,
+        reason: str,
+        device_name: str,
+        device_model: str,
+    ) -> None:
+        """Publish SDR health alert as binary_sensor with reason attribute.
+
+        Args:
+            sensor_id: Base device ID (e.g., system MAC)
+            is_problem: True if there's a health problem (ON state)
+            reason: Human-readable reason for the alert
+            device_name: HA device name
+            device_model: HA device model
+        """
+        clean_id = clean_mac(sensor_id)
+        field = "sdr_health_alert"
+        unique_id = f"{clean_id}_{field}{config.ID_SUFFIX}"
+        state_topic = f"home/rtl_devices/{clean_id}/{field}"
+        attr_topic = f"home/rtl_devices/{clean_id}/{field}/attributes"
+
+        with self.discovery_lock:
+            # Publish discovery if not already done
+            if unique_id not in self.discovery_published:
+                sys_id = get_system_mac().replace(":", "").lower()
+                device_registry = {
+                    "identifiers": [f"rtl433_{config.BRIDGE_NAME}_{sys_id}"],
+                    "manufacturer": "rtl-haos",
+                    "model": device_model,
+                    "name": device_name,
+                    "sw_version": self.sw_version,
+                }
+
+                payload = {
+                    "name": "SDR Health Alert",
+                    "state_topic": state_topic,
+                    "unique_id": unique_id,
+                    "device": device_registry,
+                    "device_class": "problem",
+                    "icon": "mdi:alert-octagon",
+                    "payload_on": "ON",
+                    "payload_off": "OFF",
+                    "json_attributes_topic": attr_topic,
+                    "availability_topic": self.TOPIC_AVAILABILITY,
+                }
+
+                config_topic = f"homeassistant/binary_sensor/{unique_id}/config"
+                self.client.publish(config_topic, json.dumps(payload), retain=True)
+                self.discovery_published.add(unique_id)
+
+        # Publish state
+        state_value = "ON" if is_problem else "OFF"
+        state_key = f"{unique_id}_state"
+        if self.last_sent_values.get(state_key) != state_value:
+            self.client.publish(state_topic, state_value, retain=True)
+            self.last_sent_values[state_key] = state_value
+
+        # Publish attributes (always update reason)
+        attr_payload = {"reason": reason if reason else "OK"}
+        attr_key = f"{unique_id}_attr"
+        attr_json = json.dumps(attr_payload)
+        if self.last_sent_values.get(attr_key) != attr_json:
+            self.client.publish(attr_topic, attr_json, retain=True)
+            self.last_sent_values[attr_key] = attr_json
