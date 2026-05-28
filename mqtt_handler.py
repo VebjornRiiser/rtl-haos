@@ -146,12 +146,17 @@ def _parse_boolish(value):
 # - invert: If True, ON means the condition is NOT present (like battery_ok)
 #           If False, ON means the condition IS present (like tamper=1 means tampered)
 BINARY_SENSOR_FIELDS = {
+    # DSC/Honeywell security sensors
     "tamper": ("tamper", "Tamper", False),
     "alarm": ("safety", "Alarm", False),
     "contact_open": ("door", "Door", False),  # 1 = open
     "reed_open": ("door", "Door", False),  # 1 = open
     "detect_wet": ("moisture", "Water Detected", False),
     "ext_power": ("plug", "External Power", False),
+    # Acurite leak detectors (1190/1192) and lightning (6045M)
+    "leak_detected": ("moisture", "Leak Detected", False),
+    "water": ("moisture", "Water Detected", False),
+    "active": ("running", "Lightning Active", False),
 }
 
 class HomeNodeMQTT:

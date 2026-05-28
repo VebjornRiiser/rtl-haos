@@ -99,9 +99,14 @@ FIELD_META = {
     "strike_distance":      ("km", "distance", "mdi:flash-alert", "Storm Distance"),
     "storm_dist":           ("km", "distance", "mdi:flash-alert", "Storm Distance"),
     "strike_count":         (None, "none", "mdi:lightning-bolt", "Strike Count"),
+    "active":               (None, "none", "mdi:lightning-bolt", "Lightning Active"),
 
     # --- Soil Moisture ---
     "moisture":            ("%", "moisture", "mdi:water-percent", "Soil Moisture"),
+
+    # --- Leak Detection (Acurite 1190/1192) ---
+    "leak_detected":       (None, "moisture", "mdi:water-alert", "Leak Detected"),
+    "water":               (None, "moisture", "mdi:water", "Water Detected"),
     
 
     # --- Radio Diagnostics ---
@@ -130,7 +135,12 @@ FIELD_META = {
     "mic":                  ("", "none", "mdi:check-network", "Integrity Check"),
     "radio_status":         ("", "none", "mdi:radio-tower", "Radio Status"),
     "rfi":                  (None, "none", "mdi:radio-tower", "RFI"),
-    
+    "sequence_num":         (None, "none", "mdi:counter", "Sequence Number"),
+    "message_type":         (None, "none", "mdi:message-text", "Message Type"),
+    "exception":            (None, "none", "mdi:alert-circle", "Exception"),
+    "ptemp_raw":            (None, "none", "mdi:thermometer", "Raw Temperature"),
+    "phumidity":            (None, "none", "mdi:water-percent", "Raw Humidity"),
+
     # --- Utility Meters ---
     "Consumption":          ("ft³", "gas", "mdi:fire", "Gas Usage"),
     "consumption":          ("ft³", "gas", "mdi:fire", "Gas Usage"),
