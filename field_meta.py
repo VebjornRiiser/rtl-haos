@@ -85,19 +85,23 @@ FIELD_META = {
     "rain_in":              ("in", "precipitation", "mdi:weather-rainy", "Rain Total"),
     "rain_rate_mm_h":       ("mm/h", "precipitation_intensity", "mdi:weather-pouring", "Rain Rate"),
     "rain_rate_in_h":       ("in/h", "precipitation_intensity", "mdi:weather-pouring", "Rain Rate"),
+    "rain_start":           (None, "none", "mdi:weather-rainy", "Rain Detected"),
 
     # --- Light ---
     "lux":                  ("lx", "illuminance", "mdi:brightness-5", "Light Level"),
     "light_lux":           ("lx", "illuminance", "mdi:brightness-5", "Light Level"),
     "uvi":                 ("UV Index", "none", "mdi:sunglasses", "UV Index"),
+    "uv_index":            ("UV Index", "none", "mdi:sunglasses", "UV Index"),
     "full_lux":             ("cnt", "none", "mdi:brightness-7", "Raw Full Spectrum"),
     "ir_lux":               ("cnt", "none", "mdi:cctv", "Raw IR"),
     "uv":                   ("UV Index", "none", "mdi:sunglasses", "UV Index"),
+    "wm":                   ("W/m²", "irradiance", "mdi:white-balance-sunny", "Solar Radiation"),
 
     # --- Lightning ---
     "strikes":              ("count", "none", "mdi:flash", "Lightning Strikes"),
     "strike_distance":      ("km", "distance", "mdi:flash-alert", "Storm Distance"),
     "storm_dist":           ("km", "distance", "mdi:flash-alert", "Storm Distance"),
+    "storm_dist_km":        ("km", "distance", "mdi:flash-alert", "Storm Distance"),
     "strike_count":         (None, "none", "mdi:lightning-bolt", "Strike Count"),
 
     # --- Soil Moisture ---
@@ -130,7 +134,13 @@ FIELD_META = {
     "mic":                  ("", "none", "mdi:check-network", "Integrity Check"),
     "radio_status":         ("", "none", "mdi:radio-tower", "Radio Status"),
     "rfi":                  (None, "none", "mdi:radio-tower", "RFI"),
-    
+    "radio_clock":          (None, "timestamp", "mdi:radio-tower", "Radio Clock"),
+    "signal":               (None, "none", "mdi:signal", "Signal Type"),
+    "firmware":             (None, "none", "mdi:chip", "Firmware"),
+    "sensitivity":          (None, "none", "mdi:tune", "Sensitivity"),
+    "raw_value":            (None, "none", "mdi:numeric", "Raw Value"),
+    "ad_raw":               (None, "none", "mdi:numeric", "ADC Raw"),
+
     # --- Utility Meters ---
     "Consumption":          ("ft³", "gas", "mdi:fire", "Gas Usage"),
     "consumption":          ("ft³", "gas", "mdi:fire", "Gas Usage"),
@@ -168,6 +178,8 @@ FIELD_META = {
     "battery_mV":          ("mV", "voltage", "mdi:battery", "Battery Voltage"),
     "battery_low":         (None, "none", "mdi:battery-alert", "Battery Low (Raw)"),
     "battery_raw":         ("cnt", "none", "mdi:battery", "Battery Raw"),
+    "battery_level":       (None, "none", "mdi:battery", "Battery Level"),
+    "supercap_V":          ("V", "voltage", "mdi:solar-power", "Supercapacitor"),
 
 }
 
