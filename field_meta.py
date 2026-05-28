@@ -130,7 +130,11 @@ FIELD_META = {
     "mic":                  ("", "none", "mdi:check-network", "Integrity Check"),
     "radio_status":         ("", "none", "mdi:radio-tower", "Radio Status"),
     "rfi":                  (None, "none", "mdi:radio-tower", "RFI"),
-    
+
+    # --- Raw Data ---
+    # Raw hex message from rtl_433, useful for debugging or protocol analysis.
+    "raw_msg":              (None, "none", "mdi:code-tags", "Raw Message"),
+
     # --- Utility Meters ---
     "Consumption":          ("ft³", "gas", "mdi:fire", "Gas Usage"),
     "consumption":          ("ft³", "gas", "mdi:fire", "Gas Usage"),
