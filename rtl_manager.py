@@ -205,6 +205,9 @@ def _ensure_rtl433_outputs(cmd: list[str], *, radio_label: str, global_map: dict
     # Default metadata: add '-M level' if user didn't specify any -M
     if "-M" not in opt_map:
         cmd.extend(["-M", "level"])
+        # Also add '-M time' if rtl_publish_timestamps is enabled
+        if getattr(config, "RTL_PUBLISH_TIMESTAMPS", False):
+            cmd.extend(["-M", "time"])
 
     return cmd
 
