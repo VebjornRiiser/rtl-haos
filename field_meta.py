@@ -96,6 +96,8 @@ FIELD_META = {
     "ir_lux":               ("cnt", "none", "mdi:cctv", "Raw IR"),
     "uv":                   ("UV Index", "none", "mdi:sunglasses", "UV Index"),
     "wm":                   ("W/m²", "irradiance", "mdi:white-balance-sunny", "Solar Radiation"),
+    "uv_sensor_id":         (None, "none", "mdi:identifier", "UV Sensor ID"),
+    "uv_status":            (None, "none", "mdi:check-circle", "UV Sensor Status"),
 
     # --- Lightning ---
     "strikes":              ("count", "none", "mdi:flash", "Lightning Strikes"),
@@ -140,6 +142,9 @@ FIELD_META = {
     "sensitivity":          (None, "none", "mdi:tune", "Sensitivity"),
     "raw_value":            (None, "none", "mdi:numeric", "Raw Value"),
     "ad_raw":               (None, "none", "mdi:numeric", "ADC Raw"),
+    "boost":                (None, "none", "mdi:signal-cellular-3", "Boost Mode"),
+    "msg_type":             (None, "none", "mdi:message-text", "Message Type"),
+    "data":                 (None, "none", "mdi:code-braces", "Extra Data"),
 
     # --- Utility Meters ---
     "Consumption":          ("ft³", "gas", "mdi:fire", "Gas Usage"),
