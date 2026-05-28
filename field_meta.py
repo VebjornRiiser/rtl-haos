@@ -43,6 +43,7 @@ FIELD_META = {
     "temperature_4_C":     ("°C", "temperature", "mdi:thermometer", "Temperature 4 (C)"),
     "temperature_1_F":     ("°F", "temperature", "mdi:thermometer", "Temperature 1"),
     "temperature_2_F":     ("°F", "temperature", "mdi:thermometer", "Temperature 2"),
+    "temperature_2":       ("°F", "temperature", "mdi:thermometer", "Temperature 2"),
     "dew_point":            ("°F", "temperature", "mdi:weather-fog", "Dew Point"),
 
     # --- Humidity ---
@@ -72,8 +73,15 @@ FIELD_META = {
     "wind_avg_km_h":        ("km/h", "wind_speed", "mdi:weather-windy", "Wind Speed"),
     "wind_avg_mi_h":        ("mph", "wind_speed", "mdi:weather-windy", "Wind Speed"),
     "wind_avg_m_s":        ("m/s", "wind_speed", "mdi:weather-windy", "Wind Speed"),
+    "wind_speed":           ("km/h", "wind_speed", "mdi:weather-windy", "Wind Speed"),
+    "wind_speed_km_h":      ("km/h", "wind_speed", "mdi:weather-windy", "Wind Speed"),
+    "wind_speed_m_s":       ("m/s", "wind_speed", "mdi:weather-windy", "Wind Speed"),
+    "wind_speed_mi_h":      ("mph", "wind_speed", "mdi:weather-windy", "Wind Speed"),
     "wind_gust_km_h":       ("km/h", "wind_speed", "mdi:weather-windy-variant", "Wind Gust"),
     "wind_gust_mi_h":       ("mph", "wind_speed", "mdi:weather-windy-variant", "Wind Gust"),
+    "wind_gust_m_s":        ("m/s", "wind_speed", "mdi:weather-windy-variant", "Wind Gust"),
+    "gust_speed_km_h":      ("km/h", "wind_speed", "mdi:weather-windy-variant", "Wind Gust"),
+    "gust_speed_m_s":       ("m/s", "wind_speed", "mdi:weather-windy-variant", "Wind Gust"),
     "wind_max_m_s":        ("m/s", "wind_speed", "mdi:weather-windy-variant", "Wind Gust"),
     "wind_max_km_h":       ("km/h", "wind_speed", "mdi:weather-windy-variant", "Wind Gust"),
     "wind_max_mi_h":       ("mph", "wind_speed", "mdi:weather-windy-variant", "Wind Gust"),
@@ -98,7 +106,10 @@ FIELD_META = {
     "strikes":              ("count", "none", "mdi:flash", "Lightning Strikes"),
     "strike_distance":      ("km", "distance", "mdi:flash-alert", "Storm Distance"),
     "storm_dist":           ("km", "distance", "mdi:flash-alert", "Storm Distance"),
+    "storm_distance":       ("km", "distance", "mdi:flash-alert", "Storm Distance"),
+    "storm_dist_km":        ("km", "distance", "mdi:flash-alert", "Storm Distance"),
     "strike_count":         (None, "none", "mdi:lightning-bolt", "Strike Count"),
+    "active":               (None, "none", "mdi:flash", "Lightning Active"),
 
     # --- Soil Moisture ---
     "moisture":            ("%", "moisture", "mdi:water-percent", "Soil Moisture"),
@@ -130,7 +141,15 @@ FIELD_META = {
     "mic":                  ("", "none", "mdi:check-network", "Integrity Check"),
     "radio_status":         ("", "none", "mdi:radio-tower", "Radio Status"),
     "rfi":                  (None, "none", "mdi:radio-tower", "RFI"),
-    
+    "sequence_num":         (None, "none", "mdi:counter", "Sequence"),
+    "message_type":         (None, "none", "mdi:message-text", "Message Type"),
+    "exception":            (None, "none", "mdi:alert-circle", "Exception"),
+
+    # --- Depth / Level ---
+    "depth_cm":             ("cm", "distance", "mdi:arrow-collapse-down", "Depth"),
+    "depth_mm":             ("mm", "distance", "mdi:arrow-collapse-down", "Depth"),
+    "depth_in":             ("in", "distance", "mdi:arrow-collapse-down", "Depth"),
+
     # --- Utility Meters ---
     "Consumption":          ("ft³", "gas", "mdi:fire", "Gas Usage"),
     "consumption":          ("ft³", "gas", "mdi:fire", "Gas Usage"),
