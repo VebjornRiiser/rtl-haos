@@ -87,12 +87,18 @@ FIELD_META = {
     "wind_max_mi_h":       ("mph", "wind_speed", "mdi:weather-windy-variant", "Wind Gust"),
     "wind_dir_deg":         ("°", "wind_direction", "mdi:compass", "Wind Direction"),
     "wind_dir":             ("°", "wind_direction", "mdi:compass", "Wind Direction"),
+    "wind_dev_deg":         ("°", "none", "mdi:compass-rose", "Wind Deviation"),
 
     # --- Rain ---
     "rain_mm":              ("mm", "precipitation", "mdi:weather-rainy", "Rain Total"),
     "rain_in":              ("in", "precipitation", "mdi:weather-rainy", "Rain Total"),
     "rain_rate_mm_h":       ("mm/h", "precipitation_intensity", "mdi:weather-pouring", "Rain Rate"),
     "rain_rate_in_h":       ("in/h", "precipitation_intensity", "mdi:weather-pouring", "Rain Rate"),
+    "rain2_mm":             ("mm", "precipitation", "mdi:weather-rainy", "Rain Total 2"),
+    "rain_raw":             ("count", "none", "mdi:weather-rainy", "Rain Raw Count"),
+    "rain":                 ("count", "none", "mdi:weather-rainy", "Rain Count"),
+    "rain1":                ("count", "none", "mdi:weather-rainy", "Rain Count 1"),
+    "rain2":                ("count", "none", "mdi:weather-rainy", "Rain Count 2"),
 
     # --- Light ---
     "lux":                  ("lx", "illuminance", "mdi:brightness-5", "Light Level"),
@@ -101,6 +107,7 @@ FIELD_META = {
     "full_lux":             ("cnt", "none", "mdi:brightness-7", "Raw Full Spectrum"),
     "ir_lux":               ("cnt", "none", "mdi:cctv", "Raw IR"),
     "uv":                   ("UV Index", "none", "mdi:sunglasses", "UV Index"),
+    "exposure_mins":        ("min", "duration", "mdi:sun-clock", "UV Exposure Time"),
 
     # --- Lightning ---
     "strikes":              ("count", "none", "mdi:flash", "Lightning Strikes"),
@@ -144,6 +151,9 @@ FIELD_META = {
     "sequence_num":         (None, "none", "mdi:counter", "Sequence"),
     "message_type":         (None, "none", "mdi:message-text", "Message Type"),
     "exception":            (None, "none", "mdi:alert-circle", "Exception"),
+    "seq":                  (None, "none", "mdi:counter", "Sequence"),
+    "startup":              (None, "none", "mdi:power", "Startup"),
+    "test":                 (None, "none", "mdi:test-tube", "Test Mode"),
 
     # --- Depth / Level ---
     "depth_cm":             ("cm", "distance", "mdi:arrow-collapse-down", "Depth"),
@@ -187,6 +197,7 @@ FIELD_META = {
     "battery_mV":          ("mV", "voltage", "mdi:battery", "Battery Voltage"),
     "battery_low":         (None, "none", "mdi:battery-alert", "Battery Low (Raw)"),
     "battery_raw":         ("cnt", "none", "mdi:battery", "Battery Raw"),
+    "newbattery":          (None, "none", "mdi:battery-plus", "New Battery"),
 
 }
 
