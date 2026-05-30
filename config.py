@@ -189,6 +189,7 @@ class Settings(BaseSettings):
             "volume_ft3",
             "volume_m3",
             "moisture",
+            "closed",  # door/window contact sensors
         ]
     )
 
