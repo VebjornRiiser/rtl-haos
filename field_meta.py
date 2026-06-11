@@ -158,6 +158,16 @@ FIELD_META = {
     "current_A":           ("A", "current", "mdi:current-ac", "Current"),
 
 
+    # --- Security / Binary Sensors ---
+    # These fields are published as binary_sensors with appropriate device classes.
+    # The actual binary_sensor logic is in mqtt_handler.py BINARY_SENSOR_FIELDS.
+    "tamper":               (None, "tamper", "mdi:alert-circle", "Tamper"),
+    "alarm":                (None, "safety", "mdi:alarm-light", "Alarm"),
+    "contact_open":         (None, "door", "mdi:door", "Door"),
+    "reed_open":            (None, "door", "mdi:door", "Door"),
+    "detect_wet":           (None, "moisture", "mdi:water-alert", "Water Detected"),
+    "ext_power":            (None, "plug", "mdi:power-plug", "External Power"),
+
     # --- Battery ---
     # Many decoders emit battery_ok where 1/True means battery is OK and 0/False
     # means battery is LOW. We publish this as a binary sensor (device_class: battery)
