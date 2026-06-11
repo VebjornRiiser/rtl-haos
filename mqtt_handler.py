@@ -138,6 +138,22 @@ def _parse_boolish(value):
             return False
     return None
 
+
+# Binary sensor field definitions.
+# Format: field_name -> (device_class, friendly_name, invert)
+# - device_class: Home Assistant binary_sensor device_class
+# - friendly_name: Display name for the entity
+# - invert: If True, ON means the condition is NOT present (like battery_ok)
+#           If False, ON means the condition IS present (like tamper=1 means tampered)
+BINARY_SENSOR_FIELDS = {
+    "tamper": ("tamper", "Tamper", False),
+    "alarm": ("safety", "Alarm", False),
+    "contact_open": ("door", "Door", False),  # 1 = open
+    "reed_open": ("door", "Door", False),  # 1 = open
+    "detect_wet": ("moisture", "Water Detected", False),
+    "ext_power": ("plug", "External Power", False),
+}
+
 class HomeNodeMQTT:
     def __init__(self, version="Unknown"):
         self.sw_version = version
@@ -672,6 +688,29 @@ class HomeNodeMQTT:
 
             if friendly_name is None:
                 friendly_name = "Battery Low"
+
+        # Handle other binary sensor fields (tamper, alarm, contact_open, etc.)
+        elif field in BINARY_SENSOR_FIELDS:
+            parsed = _parse_boolish(value)
+            if parsed is None:
+                return
+
+            device_class, default_friendly, invert = BINARY_SENSOR_FIELDS[field]
+
+            # Determine ON/OFF state
+            # invert=False: 1/True -> ON (condition present)
+            # invert=True: 1/True -> OFF (condition NOT present, like battery_ok)
+            if invert:
+                is_on = not parsed
+            else:
+                is_on = parsed
+
+            domain = "binary_sensor"
+            out_value = "ON" if is_on else "OFF"
+            extra_payload = {"payload_on": "ON", "payload_off": "OFF", "device_class": device_class}
+
+            if friendly_name is None:
+                friendly_name = default_friendly
 
         discovery_published_now = self._publish_discovery(
             field,
