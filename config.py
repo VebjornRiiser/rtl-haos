@@ -140,7 +140,13 @@ class Settings(BaseSettings):
     )
 
     # --- Device filtering ---
+    # Note: "time" is included by default. To publish timestamps, set rtl_publish_timestamps=True
+    # and ensure rtl_433 outputs time data (add "-M time" or "-M utc" to RTL_433_ARGS).
     skip_keys: list[str] = Field(default_factory=lambda: ["time", "protocol", "mod", "id"])
+
+    # If True, publish the "time" field from rtl_433 as a timestamp sensor.
+    # Requires rtl_433 to output time metadata (e.g., RTL_433_ARGS includes "-M time" or "-M utc").
+    rtl_publish_timestamps: bool = Field(default=False)
     device_blacklist: list[str] = Field(default_factory=lambda: ["SimpliSafe*", "EezTire*"])
     device_whitelist: list[str] = Field(default_factory=list)
 
@@ -260,7 +266,13 @@ RTL_AUTO_HOPPER_FREQS = settings.rtl_auto_hopper_freqs
 RTL_AUTO_HOPPER_HOP_INTERVAL = settings.rtl_auto_hopper_hop_interval
 RTL_AUTO_HOPPER_RATE = settings.rtl_auto_hopper_rate
 
-SKIP_KEYS = settings.skip_keys
+# Remove "time" from skip_keys if rtl_publish_timestamps is enabled
+_skip_keys = list(settings.skip_keys)
+if settings.rtl_publish_timestamps and "time" in _skip_keys:
+    _skip_keys.remove("time")
+SKIP_KEYS = _skip_keys
+
+RTL_PUBLISH_TIMESTAMPS = settings.rtl_publish_timestamps
 DEVICE_BLACKLIST = settings.device_blacklist
 DEVICE_WHITELIST = settings.device_whitelist
 MAIN_SENSORS = settings.main_sensors
