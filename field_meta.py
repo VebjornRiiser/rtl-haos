@@ -162,6 +162,11 @@ FIELD_META = {
     "boost":                (None, "none", "mdi:signal-cellular-3", "Boost Mode"),
     "msg_type":             (None, "none", "mdi:message-text", "Message Type"),
     "data":                 (None, "none", "mdi:code-braces", "Extra Data"),
+
+    # --- Timestamp ---
+    # rtl_433 outputs a "time" field when run with -M time or -M utc.
+    # This is useful to see when a device last transmitted, even if values didn't change.
+    "time":                 (None, "timestamp", "mdi:clock-in", "Last Seen"),
     "sequence_num":         (None, "none", "mdi:counter", "Sequence"),
     "message_type":         (None, "none", "mdi:message-text", "Message Type"),
     "exception":            (None, "none", "mdi:alert-circle", "Exception"),
