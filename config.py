@@ -195,6 +195,13 @@ class Settings(BaseSettings):
             "volume_ft3",
             "volume_m3",
             "moisture",
+            # Binary sensors (security)
+            "tamper",
+            "alarm",
+            "contact_open",
+            "reed_open",
+            "detect_wet",
+            "ext_power",
         ]
     )
 
