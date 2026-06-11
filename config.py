@@ -223,6 +223,20 @@ class Settings(BaseSettings):
         description="Seconds battery_ok must be OK before clearing a low alert (0 disables).",
     )
 
+    # --- SDR Health Monitoring ---
+    sdr_health_restart_threshold: int = Field(
+        default=3,
+        description="Number of restarts within window to trigger health alert.",
+    )
+    sdr_health_restart_window: int = Field(
+        default=600,
+        description="Window in seconds for restart loop detection (default: 10 min).",
+    )
+    sdr_health_no_data_timeout: int = Field(
+        default=900,
+        description="Seconds without data to trigger health alert (default: 15 min).",
+    )
+
     @property
     def id_suffix(self) -> str:
         return "_v2" if self.force_new_ids else ""
@@ -289,3 +303,8 @@ VERBOSE_TRANSMISSIONS = settings.verbose_transmissions
 
 # Battery behavior
 BATTERY_OK_CLEAR_AFTER = settings.battery_ok_clear_after
+
+# SDR health monitoring
+SDR_HEALTH_RESTART_THRESHOLD = settings.sdr_health_restart_threshold
+SDR_HEALTH_RESTART_WINDOW = settings.sdr_health_restart_window
+SDR_HEALTH_NO_DATA_TIMEOUT = settings.sdr_health_no_data_timeout

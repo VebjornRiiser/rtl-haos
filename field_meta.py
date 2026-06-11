@@ -10,6 +10,10 @@ FIELD_META = {
     # "sys_cfg_whitelist":    ("", "none", "mdi:playlist-check", "Whitelist"),
     # "sys_cfg_sensors":      ("", "none", "mdi:eye-settings", "Main Sensors"),
 
+    # --- SDR Health Monitoring ---
+    "sdr_health_alert":     (None, "problem", "mdi:alert-octagon", "SDR Health Alert"),
+    "sdr_health_reason":    (None, "none", "mdi:information", "Health Alert Reason"),
+
     # --- System Diagnostics (Existing) ---
     "sys_device_count":     ("dev", "none", "mdi:counter", "Active Devices"),
     # "sys_device_list":      ("", "none", "mdi:format-list-bulleted", "Device List"),
