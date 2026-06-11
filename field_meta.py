@@ -125,6 +125,10 @@ FIELD_META = {
 
     # --- Soil Moisture ---
     "moisture":            ("%", "moisture", "mdi:water-percent", "Soil Moisture"),
+
+    # --- Leak Detection (Acurite 1190/1192) ---
+    "leak_detected":       (None, "moisture", "mdi:water-alert", "Leak Detected"),
+    "water":               (None, "moisture", "mdi:water", "Water Detected"),
     
 
     # --- Radio Diagnostics ---
@@ -162,6 +166,8 @@ FIELD_META = {
     "boost":                (None, "none", "mdi:signal-cellular-3", "Boost Mode"),
     "msg_type":             (None, "none", "mdi:message-text", "Message Type"),
     "data":                 (None, "none", "mdi:code-braces", "Extra Data"),
+    "ptemp_raw":            (None, "none", "mdi:thermometer", "Raw Temperature"),
+    "phumidity":            (None, "none", "mdi:water-percent", "Raw Humidity"),
 
     # --- Raw Data ---
     # Raw hex message from rtl_433, useful for debugging or protocol analysis.
