@@ -163,6 +163,10 @@ FIELD_META = {
     "msg_type":             (None, "none", "mdi:message-text", "Message Type"),
     "data":                 (None, "none", "mdi:code-braces", "Extra Data"),
 
+    # --- Raw Data ---
+    # Raw hex message from rtl_433, useful for debugging or protocol analysis.
+    "raw_msg":              (None, "none", "mdi:code-tags", "Raw Message"),
+
     # --- Timestamp ---
     # rtl_433 outputs a "time" field when run with -M time or -M utc.
     # This is useful to see when a device last transmitted, even if values didn't change.
