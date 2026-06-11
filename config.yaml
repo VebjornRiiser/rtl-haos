@@ -74,11 +74,11 @@ options:
   device_whitelist: []
 
 schema:
-  gas_unit: str
   mqtt_host: str
   mqtt_port: port
   mqtt_user: str
   mqtt_pass: password
+  gas_unit: str?
   bridge_id: str
   bridge_name: str
   rtl_expire_after: int

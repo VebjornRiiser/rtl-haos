@@ -190,6 +190,13 @@ class Settings(BaseSettings):
             "volume_m3",
             "moisture",
             "closed",  # door/window contact sensors
+            # Binary sensors (security)
+            "tamper",
+            "alarm",
+            "contact_open",
+            "reed_open",
+            "detect_wet",
+            "ext_power",
         ]
     )
 
